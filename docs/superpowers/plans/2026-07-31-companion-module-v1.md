@@ -676,16 +676,22 @@ than a bogus camera number."
 
 ---
 
-### Task 5: `actions.ts` — the ten actions
+### Task 5: `actions.ts`, `config.ts`, and `main.ts` — actions and wiring
 
 **Files:**
 - Modify: `src/actions.ts` (replace the template's sample action entirely)
+- Modify: `src/config.ts` (replace the template's host/port fields)
+- Modify: `src/main.ts` (add instance members, replace `init` and `configUpdated`)
 
 **Interfaces:**
-- Consumes: `apiGet` from `src/api.js`; `cameraChoices`, `resolveCam`, `MANUAL` from `src/camera-picker.js`; the instance type from `src/main.js`
-- Produces: `UpdateActions(self: ModuleInstance): void`
+- Consumes: `apiGet`, `ApiTarget` from `src/api.js`; `fetchCameras`, `Camera` from `src/cameras.js`; `cameraChoices`, `resolveCam`, `MANUAL`, `NONE` from `src/camera-picker.js`
+- Produces:
+  - `UpdateActions(self: ModuleInstance): void`
+  - `type ModuleConfig = { host: string; port: number; timeout: number }`
+  - `GetConfigFields(): SomeCompanionConfigField[]`
+  - `ModuleInstance.getApiTarget(): ApiTarget`, `.getCameras(): Camera[]`, `.sendCommand(path, params): Promise<void>`
 
-The instance must expose `getApiTarget(): ApiTarget`, `getCameras(): Camera[]`, and `sendCommand(path, params): Promise<void>`. Task 6 implements those three on `ModuleInstance`.
+**Note:** this task merges what were originally Tasks 5 and 6. They are combined because `actions.ts` references instance members that only the wiring adds, so neither half compiles on its own. The combined task ends with a green build and is genuinely reviewable.
 
 Action names are user-visible and final:
 
@@ -834,36 +840,11 @@ The template declares an `ActionsSchema` interface (referenced by `ModuleSchema`
 
 Follow the exact shape the scaffolded template uses — do not invent a different one.
 
-- [ ] **Step 3: Verify it type-checks**
+Do not run `yarn build` yet — `actions.ts` references instance members that
+Step 5 adds. The build is expected to be red between Step 2 and Step 5, and
+green from Step 6 onward.
 
-```bash
-yarn build
-```
-
-Expected: FAIL, reporting that `getCameras` and `sendCommand` do not exist on `ModuleInstance`. That is correct — Task 6 adds them. Do not add them here. (`log` and `updateStatus` come from `InstanceBase` and should not error.)
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/actions.ts
-git commit -m "feat: add the ten v1 actions
-
-Does not compile yet: depends on getCameras/sendCommand landing on the
-instance in the next task."
-```
-
----
-
-### Task 6: `config.ts` and `main.ts` — configuration, connection probe, and wiring
-
-**Files:**
-- Modify: `src/config.ts`, `src/main.ts`
-
-**Interfaces:**
-- Consumes: everything from Tasks 2–5
-- Produces: a working module. `ModuleInstance` gains `getApiTarget()`, `getCameras()`, and `sendCommand()`.
-
-- [ ] **Step 1: Replace `src/config.ts`**
+- [ ] **Step 3: Replace `src/config.ts`**
 
 ```typescript
 import { Regex, type SomeCompanionConfigField } from '@companion-module/base'
@@ -912,7 +893,7 @@ If `Regex.HOSTNAME` does not exist in `base` 2.0.4, use `Regex.IP` instead and n
 grep -o "HOSTNAME\|IP" node_modules/@companion-module/base/dist/index.d.ts | sort -u
 ```
 
-- [ ] **Step 2: Add the three instance members to `src/main.ts`**
+- [ ] **Step 4: Add the three instance members to `src/main.ts`**
 
 Inside the `ModuleInstance` class, alongside the existing lifecycle methods:
 
@@ -966,7 +947,7 @@ import { fetchCameras, type Camera } from './cameras.js'
 
 `InstanceStatus` is already imported by the template.
 
-- [ ] **Step 3: Replace the body of `init()` and `configUpdated()`**
+- [ ] **Step 5: Replace the body of `init()` and `configUpdated()`**
 
 Both do the same thing, so route them through one method:
 
@@ -1008,28 +989,30 @@ Both do the same thing, so route them through one method:
 	}
 ```
 
-- [ ] **Step 4: Verify the whole module builds and lints**
+- [ ] **Step 6: Verify the whole module builds, lints, and tests**
 
 ```bash
 yarn build && yarn lint && yarn test
 ```
 
-Expected: all PASS.
+Expected: all PASS, 38 tests. This is the first green build since Step 2.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/config.ts src/main.ts
-git commit -m "feat: wire config, connection probe, and command sending
+git add src/actions.ts src/config.ts src/main.ts
+git commit -m "feat: add the ten v1 actions and wire the module
 
 init and configUpdated both make exactly two requests and nothing else.
 A camera-list failure keeps the connection Ok and degrades to manual entry;
-only the /test probe failing marks the connection down."
+only the /test probe failing marks the connection down. sendCommand never
+retries: the master's synchronous web server wedges under pressure, so a
+visibly failed press beats hammering the device."
 ```
 
 ---
 
-### Task 7: `presets.ts` — ready-to-drag buttons
+### Task 6: `presets.ts` — ready-to-drag buttons
 
 **Files:**
 - Modify: `src/presets.ts` (replace the template's sample preset entirely)
@@ -1128,7 +1111,7 @@ absent when the master was unreachable at connect time."
 
 ---
 
-### Task 8: Verify against the real rig and package
+### Task 7: Verify against the real rig and package
 
 No new code. This is the task that decides whether v1 actually ships.
 
