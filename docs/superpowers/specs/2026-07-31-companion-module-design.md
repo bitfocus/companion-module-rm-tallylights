@@ -95,6 +95,9 @@ src/
 ├── api.ts        HTTP client. Pure URL building + one GET helper.
 │                 Zero Companion imports.
 ├── cameras.ts    Camera list fetch, cache, and dropdown choices
+├── camera-picker.ts  Dropdown choice building + selection→number
+│                 resolution. Split from actions.ts because it is pure
+│                 logic worth unit testing; no Companion imports.
 ├── actions.ts    Action definitions
 └── presets.ts    Preset definitions
 ```
