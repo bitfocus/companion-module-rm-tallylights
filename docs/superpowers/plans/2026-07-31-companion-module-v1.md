@@ -874,7 +874,7 @@ export function UpdateActions(self: ModuleInstance): void {
 
 - [ ] **Step 2: Update the `ActionsSchema` type**
 
-The template declares an `ActionsSchema` interface (referenced by `ModuleSchema` in `main.ts`) that types action ids and their options. Replace its `sample_action` entry with the ten ids above. Give each camera action `cam: string` and `cam_manual: number`; give `update_display` `live: string`, `live_manual: number`, `preview: string`, `preview_manual: number`; give the six parameterless actions empty options.
+The template declares an `ActionsSchema` interface (referenced by `ModuleSchema` in `main.ts`) that types action ids and their options. Replace its `sample_action` entry with the ten ids above. Give each camera action `cam: string` and `cam_manual: number`; give `update_display` `live: string`, `live_manual: number`, `preview: string`, `preview_manual: number`; give the five parameterless actions (`auto`, `all_idle`, `all_off`, `onair_on`, `onair_off`) empty options.
 
 Follow the exact shape the scaffolded template uses — do not invent a different one.
 
@@ -1065,9 +1065,24 @@ Presets: `ON AIR`, `OFF AIR`, `AUTO`, `ALL OFF`, `ALL IDLE`, and a Live/Preview 
 
 - [ ] **Step 1: Replace `src/presets.ts`**
 
+The preset API shape below was verified against the installed
+`@companion-module/base@2.0.4` type definitions, not assumed:
+
+- `setPresetDefinitions(structure, presets)` takes **two** arguments
+  (`base.d.ts:108`): an array of `CompanionPresetSection` and the preset map.
+- A preset's `type` is **`'simple'`**, not `'button'`
+  (`preset/definition.d.ts`, `CompanionSimplePresetDefinition extends CompanionPresetDefinitionBase<'simple'>`).
+- There is **no `category` field**. Grouping is expressed by sections, whose
+  `definitions` may be a plain array of preset id strings
+  (`CompanionPresetReference[] = string[]`, `preset/structure.d.ts`).
+- `size: '14'` is valid — `CompanionTextSize` is
+  `'auto' | '7' | '14' | '18' | '24' | '30' | '44' | number` (`style.d.ts:2`).
+
 ```typescript
 import { combineRgb } from '@companion-module/base'
+import type { CompanionPresetDefinitions, CompanionPresetSection } from '@companion-module/base'
 import type ModuleInstance from './main.js'
+import type { ModuleSchema } from './main.js'
 
 const WHITE = combineRgb(255, 255, 255)
 const BLACK = combineRgb(0, 0, 0)
@@ -1076,17 +1091,25 @@ const GREEN = combineRgb(0, 150, 0)
 const DARK = combineRgb(40, 40, 40)
 
 export function UpdatePresets(self: ModuleInstance): void {
-	const presets: Record<string, unknown> = {}
+	const presets: CompanionPresetDefinitions<ModuleSchema> = {}
+	const generalIds: string[] = []
+	const cameraIds: string[] = []
 
-	const simple = (key: string, label: string, actionId: string, bg: number, fg: number) => {
-		presets[key] = {
-			type: 'button',
-			category: 'General',
+	const simple = (
+		id: string,
+		label: string,
+		actionId: 'onair_on' | 'onair_off' | 'auto' | 'all_off' | 'all_idle',
+		bg: number,
+		fg: number,
+	) => {
+		presets[id] = {
+			type: 'simple',
 			name: label,
 			style: { text: label, size: '14', color: fg, bgcolor: bg },
 			steps: [{ down: [{ actionId, options: {} }], up: [] }],
 			feedbacks: [],
 		}
+		generalIds.push(id)
 	}
 
 	simple('onair_on', 'ON AIR', 'onair_on', RED, WHITE)
@@ -1096,11 +1119,11 @@ export function UpdatePresets(self: ModuleInstance): void {
 	simple('all_idle', 'ALL IDLE', 'all_idle', DARK, WHITE)
 
 	for (const camera of self.getCameras()) {
-		presets[`live_${camera.id}`] = {
-			type: 'button',
-			category: 'Cameras',
+		const liveId = `live_${camera.id}`
+		presets[liveId] = {
+			type: 'simple',
 			name: `${camera.name} Live`,
-			style: { text: `${camera.name}\\nLIVE`, size: '14', color: WHITE, bgcolor: RED },
+			style: { text: `${camera.name}\nLIVE`, size: '14', color: WHITE, bgcolor: RED },
 			steps: [
 				{
 					down: [{ actionId: 'set_live_cam', options: { cam: String(camera.id), cam_manual: camera.id } }],
@@ -1109,12 +1132,13 @@ export function UpdatePresets(self: ModuleInstance): void {
 			],
 			feedbacks: [],
 		}
+		cameraIds.push(liveId)
 
-		presets[`preview_${camera.id}`] = {
-			type: 'button',
-			category: 'Cameras',
+		const previewId = `preview_${camera.id}`
+		presets[previewId] = {
+			type: 'simple',
 			name: `${camera.name} Preview`,
-			style: { text: `${camera.name}\\nPVW`, size: '14', color: WHITE, bgcolor: GREEN },
+			style: { text: `${camera.name}\nPVW`, size: '14', color: WHITE, bgcolor: GREEN },
 			steps: [
 				{
 					down: [{ actionId: 'set_preview_cam', options: { cam: String(camera.id), cam_manual: camera.id } }],
@@ -1123,13 +1147,30 @@ export function UpdatePresets(self: ModuleInstance): void {
 			],
 			feedbacks: [],
 		}
+		cameraIds.push(previewId)
 	}
 
-	self.setPresetDefinitions(presets as never)
+	const sections: CompanionPresetSection<ModuleSchema>[] = [{ id: 'general', name: 'General', definitions: generalIds }]
+
+	// Omit the section entirely rather than showing an empty group when the
+	// master was unreachable and no camera list was fetched.
+	if (cameraIds.length > 0) {
+		sections.push({ id: 'cameras', name: 'Cameras', definitions: cameraIds })
+	}
+
+	self.setPresetDefinitions(sections, presets)
 }
 ```
 
-If `yarn build` rejects the `Record<string, unknown>` / `as never` shape, replace both with the exact preset types the scaffolded template imports from `@companion-module/base` (likely `CompanionPresetDefinitions`). Prefer the template's own types over the cast.
+Two notes:
+
+- `ModuleSchema` must be **exported** from `src/main.ts` for the type imports
+  above to work. If Task 1 left it unexported, add the `export` keyword — that
+  is the only change permitted to `main.ts` in this task.
+- Do not fall back to `as never`, `as any`, or `Record<string, unknown>`. If the
+  types reject something, the shape above is wrong and you should report it
+  rather than cast past it — a cast here would silently ship malformed presets
+  that Companion rejects at runtime.
 
 - [ ] **Step 2: Verify build, lint, and tests**
 
@@ -1184,6 +1225,19 @@ Make a button for each and press it. Confirm the **physical** result, not just t
 - [ ] All Cameras Off → all black
 - [ ] Set On Air Lights On → **relay clicks, on-air light illuminates**
 - [ ] Set On Air Lights Off → relay releases, light goes out
+
+- [ ] **Step 3b: Verify the manual-entry field's conditional visibility**
+
+The `isVisibleExpression` string `$(options:cam) == 'manual'` was written from
+the base 2.0.4 type docs and has never been evaluated by a running Companion.
+Confirm in the action editor that:
+
+- With a named camera selected, the `Camera (manual)` number field is **hidden**.
+- With `Manual entry…` selected, it **appears**.
+
+If it is always visible or never visible, the expression syntax is wrong. That
+is cosmetic — every action still works via the dropdown — but report it so the
+syntax can be corrected.
 
 - [ ] **Step 4: Verify manual entry**
 
