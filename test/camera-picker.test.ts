@@ -54,4 +54,19 @@ describe('resolveCam', () => {
 	it('rejects a non-numeric dropdown value', () => {
 		expect(resolveCam('banana', 0, false)).toBeNull()
 	})
+
+	// Regression guards: Number('') and Number('   ') are both 0, which
+	// isValidDisplayCam accepts as "none". Without a digit-only guard a blank
+	// dropdown value would send a real command instead of being skipped.
+	it('rejects a blank dropdown value even when None is allowed', () => {
+		expect(resolveCam('', 0, true)).toBeNull()
+	})
+
+	it('rejects a whitespace dropdown value even when None is allowed', () => {
+		expect(resolveCam('   ', 0, true)).toBeNull()
+	})
+
+	it.each(['0x3', '1e1', '+3', ' 3 ', 'Infinity'])('rejects the non-digit form %s', (value) => {
+		expect(resolveCam(value, 0, false)).toBeNull()
+	})
 })

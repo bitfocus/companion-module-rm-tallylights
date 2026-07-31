@@ -36,7 +36,12 @@ export function resolveCam(dropdownValue: string, manualValue: number, allowNone
 		return validate(manualValue) ? manualValue : null
 	}
 
+	// Digit-only. Number() would turn '' and '   ' into 0 — which isValidDisplayCam
+	// accepts as "none" — so a blank dropdown value would send a real command
+	// instead of being warned and skipped. It would also accept '0x3', '1e1',
+	// '+3' and ' 3 ' as cameras. Real dropdown ids are always plain digits.
+	if (!/^\d+$/.test(dropdownValue)) return null
+
 	const parsed = Number(dropdownValue)
-	if (!Number.isFinite(parsed)) return null
 	return validate(parsed) ? parsed : null
 }
