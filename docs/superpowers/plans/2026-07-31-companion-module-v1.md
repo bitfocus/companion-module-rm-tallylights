@@ -20,7 +20,7 @@ Every task's requirements implicitly include this section.
 - Action names are **user-visible and final** — use them verbatim from Task 5.
 - `api.ts` and `cameras.ts` MUST NOT import from `@companion-module/base`.
 - Master API facts, verified against firmware:
-  - `/test` → `200 text/plain` body `ESP32 server is working!`
+  - `/test` → `200 text/plain` body `RM Server Working!` — the module MUST NOT compare this string; only the HTTP status is meaningful
   - `/api/cameras` → `200 application/json` body `{"cams":[{"id":1,"name":"Main Camera","address":"AA:BB:CC:DD:EE:FF","protected":true}]}`
   - Control endpoints → `200 text/plain` on success, `400 text/plain` with a human-readable reason on bad input.
 - Repo: `~/Documents/Arduino/companion-module-rm-tallylights` (`rocampocr/companion-module-rm-tallylights`, branch `main`). Push with SSH.
@@ -228,9 +228,9 @@ describe('apiGet', () => {
 	})
 
 	it('reports success for a 200', async () => {
-		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('ESP32 server is working!', { status: 200 })))
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('RM Server Working!', { status: 200 })))
 		const result = await apiGet({ host: '192.168.0.76', port: 80, timeoutMs: 3000 }, '/test')
-		expect(result).toEqual({ ok: true, status: 200, body: 'ESP32 server is working!' })
+		expect(result).toEqual({ ok: true, status: 200, body: 'RM Server Working!' })
 	})
 
 	it("surfaces the master's 400 reason verbatim", async () => {
