@@ -32,7 +32,13 @@ export function GetConfigFields(): SomeCompanionConfigField[] {
 			width: 4,
 			min: 500,
 			max: 30000,
-			default: 3000,
+			// /allOff and /allIdle loop over every camera on the master, blocking
+			// ~100ms per online camera and ~240ms per offline one before replying —
+			// 32 offline cameras is ~7.7s. A shorter default aborted the request
+			// after the master had already executed the command, reporting a red
+			// "unreachable" connection and dropping a client mid-response on the
+			// wedge-prone synchronous server.
+			default: 10000,
 		},
 	]
 }

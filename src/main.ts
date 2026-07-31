@@ -54,6 +54,15 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		if (probe.status === null) {
 			this.updateStatus(InstanceStatus.ConnectionFailure, 'Master unreachable')
 			this.cameras = []
+		} else if (!probe.ok) {
+			// Something answered, but not an RM Tally Lights master — a router admin
+			// page or a printer will 404 /test. Distinct from "unreachable" because
+			// it calls for a different fix: check the address, not the network.
+			this.updateStatus(
+				InstanceStatus.ConnectionFailure,
+				`Unexpected response from /test (HTTP ${probe.status}) — is this an RM Tally Lights master?`,
+			)
+			this.cameras = []
 		} else {
 			this.updateStatus(InstanceStatus.Ok)
 			// A camera-list failure is not a connection failure: the master
@@ -91,22 +100,33 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	 * visibly failed press the operator can repeat beats hammering the device.
 	 */
 	async sendCommand(path: string, params: Record<string, string | number> = {}): Promise<void> {
-		const result = await apiGet(this.getApiTarget(), path, params)
+		const target = this.getApiTarget()
+		const addr = `${target.host}:${target.port}${path}`
+		const result = await apiGet(target, path, params)
 
 		if (result.status === null) {
-			this.log('warn', `Request to ${path} failed: master unreachable`)
+			// A timeout and an unreachable host are indistinguishable in ApiResult,
+			// and /allOff and /allIdle can legitimately take seconds on the master —
+			// so don't claim the command was not executed.
+			this.log(
+				'warn',
+				`Request to ${addr} got no response within ${target.timeoutMs}ms — the master may still have executed it`,
+			)
 			this.updateStatus(InstanceStatus.ConnectionFailure)
 			return
 		}
 
 		if (!result.ok) {
 			// The master answered, so the connection is fine — we sent something
-			// it rejected. Its error strings are already human-readable.
-			this.log('warn', `Master rejected ${path}: ${result.body}`)
+			// it rejected. Its error strings are already human-readable. Clear any
+			// stale ConnectionFailure: a 400 is not a success, but it is proof of
+			// reachability.
+			this.log('warn', `Master rejected ${addr}: ${result.body}`)
+			this.updateStatus(InstanceStatus.Ok)
 			return
 		}
 
-		this.log('debug', `${path} OK`)
+		this.log('debug', `${addr} OK`)
 		this.updateStatus(InstanceStatus.Ok)
 	}
 

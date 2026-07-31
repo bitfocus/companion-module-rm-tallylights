@@ -3,6 +3,12 @@ import type { Camera } from './cameras.js'
 
 export const MANUAL = 'manual'
 export const NONE = 'none'
+/**
+ * Default for every camera picker. resolveCam does not recognise it, so it
+ * resolves to null and an untouched button warns and sends nothing instead of
+ * firing a real command at whichever camera happened to be the default.
+ */
+export const UNSET = 'unset'
 
 export interface Choice {
 	id: string
@@ -10,7 +16,9 @@ export interface Choice {
 }
 
 export function cameraChoices(cameras: Camera[], includeNone: boolean): Choice[] {
-	const choices: Choice[] = []
+	// UNSET first, ahead of None and the cameras, so a freshly dragged button
+	// cannot put a camera to air before the operator has configured it.
+	const choices: Choice[] = [{ id: UNSET, label: '— select a camera —' }]
 	if (includeNone) {
 		choices.push({ id: NONE, label: 'None' })
 	}

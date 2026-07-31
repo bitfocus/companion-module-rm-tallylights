@@ -50,6 +50,7 @@ describe('isValidDisplayCam', () => {
 describe('apiGet', () => {
 	afterEach(() => {
 		vi.unstubAllGlobals()
+		vi.useRealTimers()
 	})
 
 	it('reports success for a 200', async () => {
@@ -76,5 +77,39 @@ describe('apiGet', () => {
 		vi.stubGlobal('fetch', spy)
 		await apiGet({ host: '192.168.0.76', port: 80, timeoutMs: 3000 }, '/set_off_cam', { cam: 4 })
 		expect(spy.mock.calls[0][0]).toBe('http://192.168.0.76/set_off_cam?cam=4')
+	})
+
+	// config.ts defaults host to '', and Companion calls init() with the default
+	// config the moment the connection is added. new URL('http://:80/test')
+	// throws, so if the URL were built outside the try, init() would reject and
+	// the user would get zero actions. apiGet must never reject.
+	it('resolves rather than throwing when the host is empty', async () => {
+		const spy = vi.fn()
+		vi.stubGlobal('fetch', spy)
+		const result = await apiGet({ host: '', port: 80, timeoutMs: 3000 }, '/test')
+		expect(result).toEqual({ ok: false, status: null, body: '' })
+		expect(spy).not.toHaveBeenCalled()
+	})
+
+	it('aborts and reports a null status when the request outlives timeoutMs', async () => {
+		vi.useFakeTimers()
+		let signal: AbortSignal | undefined
+		vi.stubGlobal(
+			'fetch',
+			async (_url: string, init: { signal: AbortSignal }) =>
+				new Promise((_resolve, reject) => {
+					signal = init.signal
+					init.signal.addEventListener('abort', () => reject(new Error('aborted')))
+				}),
+		)
+
+		const pending = apiGet({ host: '192.168.0.76', port: 80, timeoutMs: 3000 }, '/allOff')
+
+		await vi.advanceTimersByTimeAsync(2999)
+		expect(signal?.aborted).toBe(false)
+
+		await vi.advanceTimersByTimeAsync(1)
+		expect(signal?.aborted).toBe(true)
+		await expect(pending).resolves.toEqual({ ok: false, status: null, body: '' })
 	})
 })
