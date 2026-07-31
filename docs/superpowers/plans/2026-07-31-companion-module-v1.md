@@ -753,6 +753,11 @@ function cameraOptions(self: ModuleInstance, idPrefix: string, label: string, in
 			label,
 			default: includeNone ? NONE : MANUAL,
 			choices: cameraChoices(self.getCameras(), includeNone),
+			// Required so the manual field's isVisibleExpression may reference this
+			// field. Also prevents the user turning the camera picker into an
+			// arbitrary expression, which is the only way blank or non-digit text
+			// could otherwise reach resolveCam.
+			disableAutoExpression: true,
 		},
 		{
 			id: `${idPrefix}_manual`,
@@ -761,7 +766,10 @@ function cameraOptions(self: ModuleInstance, idPrefix: string, label: string, in
 			default: 1,
 			min: includeNone ? 0 : 1,
 			max: 32,
-			isVisible: (options: Record<string, unknown>) => options[idPrefix] === MANUAL,
+			// base 2.x has no callback-style isVisible; visibility is a Companion
+			// expression string evaluated in the UI. Fields referenced here must set
+			// disableAutoExpression (see above).
+			isVisibleExpression: `$(options:${idPrefix}) == '${MANUAL}'`,
 		},
 	]
 }
