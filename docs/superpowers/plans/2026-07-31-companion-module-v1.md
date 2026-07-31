@@ -30,11 +30,13 @@ Every task's requirements implicitly include this section.
 ### Task 1: Scaffold the module from the official template
 
 **Files:**
+
 - Create: everything from `companion-module-template-ts` at repo root
 - Modify: `companion/manifest.json`, `package.json`
 - Delete: `src/feedbacks.ts`, `src/variables.ts`
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: a buildable module skeleton. Later tasks rely on `src/main.ts` exporting `default class ModuleInstance extends InstanceBase<ModuleSchema>`, and on `src/config.ts` exporting `type ModuleConfig` and `GetConfigFields()`.
 
@@ -76,17 +78,17 @@ Change **only** these fields. Leave `runtime`, `api`, `apiVersion`, and `entrypo
 
 ```json
 {
-  "id": "rm-tallylights",
-  "name": "rm-tallylights",
-  "shortname": "RM Tally Lights",
-  "description": "Control RM Tally Lights camera tally and On Air lights",
-  "version": "1.0.0",
-  "license": "MIT",
-  "manufacturer": "Rosnell Media Group",
-  "products": ["Tally Lights Manager"],
-  "keywords": ["tally", "onair", "esp32"],
-  "repository": "https://github.com/rocampocr/companion-module-rm-tallylights",
-  "bugs": "https://github.com/rocampocr/companion-module-rm-tallylights/issues"
+	"id": "rm-tallylights",
+	"name": "rm-tallylights",
+	"shortname": "RM Tally Lights",
+	"description": "Control RM Tally Lights camera tally and On Air lights",
+	"version": "1.0.0",
+	"license": "MIT",
+	"manufacturer": "Rosnell Media Group",
+	"products": ["Tally Lights Manager"],
+	"keywords": ["tally", "onair", "esp32"],
+	"repository": "https://github.com/rocampocr/companion-module-rm-tallylights",
+	"bugs": "https://github.com/rocampocr/companion-module-rm-tallylights/issues"
 }
 ```
 
@@ -152,10 +154,12 @@ the feedbacks and variables files since v1 ships neither."
 ### Task 2: `api.ts` — URL building and the GET helper
 
 **Files:**
+
 - Create: `src/api.ts`
 - Test: `test/api.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing (no Companion imports — enforced)
 - Produces:
   - `type ApiTarget = { host: string; port: number; timeoutMs: number }`
@@ -360,10 +364,12 @@ unit testable in isolation."
 ### Task 3: `cameras.ts` — fetching, parsing, and caching the camera list
 
 **Files:**
+
 - Create: `src/cameras.ts`
 - Test: `test/cameras.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ApiTarget`, `apiGet` from `src/api.js`
 - Produces:
   - `interface Camera { id: number; name: string }`
@@ -522,10 +528,12 @@ list, which callers already treat as the manual-entry fallback."
 ### Task 4: The camera picker option builder
 
 **Files:**
+
 - Create: `src/camera-picker.ts`
 - Test: `test/camera-picker.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Camera` from `src/cameras.js`; `isValidCam`, `isValidDisplayCam` from `src/api.js`
 - Produces:
   - `MANUAL = 'manual'`, `NONE = 'none'`
@@ -595,6 +603,21 @@ describe('resolveCam', () => {
 	it('rejects a non-numeric dropdown value', () => {
 		expect(resolveCam('banana', 0, false)).toBeNull()
 	})
+
+	// Regression guards: Number('') and Number('   ') are both 0, which
+	// isValidDisplayCam accepts as "none". Without a digit-only guard a blank
+	// dropdown value would send a real command instead of being skipped.
+	it('rejects a blank dropdown value even when None is allowed', () => {
+		expect(resolveCam('', 0, true)).toBeNull()
+	})
+
+	it('rejects a whitespace dropdown value even when None is allowed', () => {
+		expect(resolveCam('   ', 0, true)).toBeNull()
+	})
+
+	it.each(['0x3', '1e1', '+3', ' 3 ', 'Infinity'])('rejects the non-digit form %s', (value) => {
+		expect(resolveCam(value, 0, false)).toBeNull()
+	})
 })
 ```
 
@@ -649,8 +672,13 @@ export function resolveCam(dropdownValue: string, manualValue: number, allowNone
 		return validate(manualValue) ? manualValue : null
 	}
 
+	// Digit-only. Number() would turn '' and '   ' into 0 — which isValidDisplayCam
+	// accepts as "none" — so a blank dropdown value would send a real command
+	// instead of being warned and skipped. It would also accept '0x3', '1e1',
+	// '+3' and ' 3 ' as cameras. Real dropdown ids are always plain digits.
+	if (!/^\d+$/.test(dropdownValue)) return null
+
 	const parsed = Number(dropdownValue)
-	if (!Number.isFinite(parsed)) return null
 	return validate(parsed) ? parsed : null
 }
 ```
@@ -661,7 +689,7 @@ export function resolveCam(dropdownValue: string, manualValue: number, allowNone
 yarn test
 ```
 
-Expected: PASS, 38 tests total.
+Expected: PASS, 45 tests total.
 
 - [ ] **Step 5: Commit**
 
@@ -679,11 +707,13 @@ than a bogus camera number."
 ### Task 5: `actions.ts`, `config.ts`, and `main.ts` — actions and wiring
 
 **Files:**
+
 - Modify: `src/actions.ts` (replace the template's sample action entirely)
 - Modify: `src/config.ts` (replace the template's host/port fields)
 - Modify: `src/main.ts` (add instance members, replace `init` and `configUpdated`)
 
 **Interfaces:**
+
 - Consumes: `apiGet`, `ApiTarget` from `src/api.js`; `fetchCameras`, `Camera` from `src/cameras.js`; `cameraChoices`, `resolveCam`, `MANUAL`, `NONE` from `src/camera-picker.js`
 - Produces:
   - `UpdateActions(self: ModuleInstance): void`
@@ -695,18 +725,18 @@ than a bogus camera number."
 
 Action names are user-visible and final:
 
-| Action id | Name |
-|---|---|
-| `set_live_cam` | Set Camera Live |
-| `set_preview_cam` | Set Camera Preview |
-| `set_idle_cam` | Set Camera Idle |
-| `set_off_cam` | Set Camera Off |
-| `update_display` | Set Live + Preview |
-| `auto` | Auto (swap live/preview) |
-| `all_idle` | All Cameras Idle |
-| `all_off` | All Cameras Off |
-| `onair_on` | Set On Air Lights On |
-| `onair_off` | Set On Air Lights Off |
+| Action id         | Name                     |
+| ----------------- | ------------------------ |
+| `set_live_cam`    | Set Camera Live          |
+| `set_preview_cam` | Set Camera Preview       |
+| `set_idle_cam`    | Set Camera Idle          |
+| `set_off_cam`     | Set Camera Off           |
+| `update_display`  | Set Live + Preview       |
+| `auto`            | Auto (swap live/preview) |
+| `all_idle`        | All Cameras Idle         |
+| `all_off`         | All Cameras Off          |
+| `onair_on`        | Set On Air Lights On     |
+| `onair_off`       | Set On Air Lights Off    |
 
 - [ ] **Step 1: Replace `src/actions.ts` wholesale**
 
@@ -995,7 +1025,7 @@ Both do the same thing, so route them through one method:
 yarn build && yarn lint && yarn test
 ```
 
-Expected: all PASS, 38 tests. This is the first green build since Step 2.
+Expected: all PASS, 45 tests. This is the first green build since Step 2.
 
 - [ ] **Step 7: Commit**
 
@@ -1015,9 +1045,11 @@ visibly failed press beats hammering the device."
 ### Task 6: `presets.ts` — ready-to-drag buttons
 
 **Files:**
+
 - Modify: `src/presets.ts` (replace the template's sample preset entirely)
 
 **Interfaces:**
+
 - Consumes: `getCameras()` from the instance
 - Produces: `UpdatePresets(self: ModuleInstance): void`
 
@@ -1116,6 +1148,7 @@ absent when the master was unreachable at connect time."
 No new code. This is the task that decides whether v1 actually ships.
 
 **Files:**
+
 - Modify: `companion/HELP.md`
 
 - [ ] **Step 1: Point Companion at the dev module**
