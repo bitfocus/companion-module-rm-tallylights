@@ -352,8 +352,13 @@ unverified assumption in the build. The pattern —
 referenced dropdown sets `disableAutoExpression: true` — is now known good and
 safe to reuse.
 
-### Not confirmed
+### Offline degradation confirmed
 
-- Offline degradation with the master powered off. Expect a red connection and a
-  log line rather than a crash, and green again on the first successful press
-  after it returns.
+With the master powered off the module behaved as designed: a red connection and
+a log line rather than a crash, recovering on the first successful press once the
+master returned. This exercised the `status: null` branch of `sendCommand` and
+the `ConnectionFailure`-clears-on-success path, neither of which has unit
+coverage (`ModuleInstance` needs a Companion host to instantiate), so it was the
+only evidence available for that code.
+
+**Task 7 is complete. Every item verified.**
