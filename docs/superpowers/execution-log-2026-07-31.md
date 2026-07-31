@@ -341,8 +341,19 @@ well. These are per-camera commands, so `/update_display` is the only action tha
 produces a clean live/preview pair. Not a defect, but it shapes how buttons
 should be built.
 
-### Not explicitly confirmed
+### Step 3b — `isVisibleExpression` confirmed working
 
-- Whether the `Manual entry…` number field hides and shows correctly via
-  `isVisibleExpression` (Task 7 Step 3b). Cosmetic if wrong.
-- Offline degradation with the master powered off.
+The manual-entry number field hides when a named camera is selected from the
+dropdown, reappears on `Manual entry…`, and works when used. This was the only
+part of the module written from type definitions
+(`module-api/input.d.ts:31-44`) without ever being executed, so it was the last
+unverified assumption in the build. The pattern —
+`isVisibleExpression: "$(options:<id>) == '<sentinel>'"` on a field whose
+referenced dropdown sets `disableAutoExpression: true` — is now known good and
+safe to reuse.
+
+### Not confirmed
+
+- Offline degradation with the master powered off. Expect a red connection and a
+  log line rather than a crash, and green again on the first successful press
+  after it returns.
