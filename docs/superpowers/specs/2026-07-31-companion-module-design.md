@@ -82,7 +82,7 @@ design follows that shape.
 | Repository | `companion-module-rm-tallylights` (standalone; Companion requires one repo per module) |
 | Manifest `id` | `rm-tallylights` |
 | Name | RM Tally Lights |
-| Manufacturer | RM |
+| Manufacturer | Rosnell Media Group |
 | Products | Tally Lights Manager |
 
 ## 7. Architecture
