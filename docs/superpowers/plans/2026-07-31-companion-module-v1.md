@@ -1198,7 +1198,7 @@ No new code. This is the task that decides whether v1 actually ships.
 
 **Files:**
 
-- Modify: `companion/HELP.md`
+- Modify: `companion/HELP.md` — DONE
 - Modify: `README.md` (still `# companion-module-[replace with module name]`)
 - Modify: `LICENSE` (still `Copyright (c) 2022 Bitfocus AS`, wrong for this repo)
 - Modify: `package.json` (`repository` still points at `companion-module-your-module-name`)
@@ -1265,10 +1265,18 @@ Replace the template content with: what the module does; the three config fields
 - [ ] **Step 7: Package and verify the packaged build**
 
 ```bash
-yarn companion-module-build
+yarn package
 ```
 
-Expected: a `pkg/` folder and `companion-module-rm-tallylights-1.0.0.tgz`.
+There is no `companion-module-build` script — the template defines it as `package`
+(which runs `build` first). Expected output: a `pkg/` folder and
+**`rm-tallylights-1.0.0.tgz`** — named from the manifest `id`, not the npm package
+name. Both are git-ignored (`/pkg`, `/*.tgz`).
+
+Note: packaging **fails** while any template placeholder remains — the Bitfocus
+tooling validates the manifest and rejects `"Your name"` outright
+(`Manifest incorrectly references template module`). The metadata cleanup is a
+prerequisite for this step, not cosmetic polish.
 
 Load that `.tgz` through Companion's Modules page on a clean Companion instance and repeat Step 2 plus two actions from Step 3. The Bitfocus docs warn that packaging is where modules break, so a passing dev-module run does not substitute for this.
 

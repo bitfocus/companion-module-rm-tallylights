@@ -18,7 +18,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/bitfocus/companion-module-your-module-name.git"
+		"url": "git+https://github.com/rocampocr/companion-module-rm-tallylights.git"
 	},
 	"engines": {
 		"node": "^22.20",
