@@ -1199,6 +1199,13 @@ No new code. This is the task that decides whether v1 actually ships.
 **Files:**
 
 - Modify: `companion/HELP.md`
+- Modify: `README.md` (still `# companion-module-[replace with module name]`)
+- Modify: `LICENSE` (still `Copyright (c) 2022 Bitfocus AS`, wrong for this repo)
+- Modify: `package.json` (`repository` still points at `companion-module-your-module-name`)
+- Modify: `companion/manifest.json` (`maintainers` still `"Your name"` / `"Your email"`)
+
+Spec §9 promises the stale-camera-name caveat is documented "in the module
+README", so it must land in `README.md`, not only in `HELP.md`.
 
 - [ ] **Step 1: Point Companion at the dev module**
 

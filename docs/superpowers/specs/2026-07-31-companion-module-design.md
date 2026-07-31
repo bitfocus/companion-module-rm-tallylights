@@ -31,15 +31,15 @@ pick **RM Tally Lights → Set On Air Lights On** from a list.
 
 ## 3. Non-goals (deferred or rejected)
 
-| Not in v1 | Why |
-|---|---|
-| Feedbacks (buttons reflecting state) | Requires polling. Deferred to v2 — see §4. |
-| Companion variables | Without reads they can only report what was last *sent*, which silently goes stale. Misleading state on an on-air indicator is the worst failure mode available. |
-| Toggle On Air | Master has no toggle endpoint, and without feedbacks a toggle button cannot show its state. Explicit Set On Air Lights On / Off matches the existing OBS start/stop trigger model. |
-| Management endpoints (camera add/remove/rename, export/import settings) | Setup tasks nobody performs from a control surface. |
-| `/reset_wifi` | Clears the master's WiFi credentials and restarts it. One mispress takes the rig off the network mid-show. Belongs in the web UI only. |
-| `/set_color` | Sets *camera #1's matrix only*, not a global colour. The name would mislead; it reads as a debug endpoint rather than show control. |
-| Automated tests against hardware | The ESP32 is not a CI target. |
+| Not in v1                                                               | Why                                                                                                                                                                                |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Feedbacks (buttons reflecting state)                                    | Requires polling. Deferred to v2 — see §4.                                                                                                                                         |
+| Companion variables                                                     | Without reads they can only report what was last _sent_, which silently goes stale. Misleading state on an on-air indicator is the worst failure mode available.                   |
+| Toggle On Air                                                           | Master has no toggle endpoint, and without feedbacks a toggle button cannot show its state. Explicit Set On Air Lights On / Off matches the existing OBS start/stop trigger model. |
+| Management endpoints (camera add/remove/rename, export/import settings) | Setup tasks nobody performs from a control surface.                                                                                                                                |
+| `/reset_wifi`                                                           | Clears the master's WiFi credentials and restarts it. One mispress takes the rig off the network mid-show. Belongs in the web UI only.                                             |
+| `/set_color`                                                            | Sets _camera #1's matrix only_, not a global colour. The name would mislead; it reads as a debug endpoint rather than show control.                                                |
+| Automated tests against hardware                                        | The ESP32 is not a CI target.                                                                                                                                                      |
 
 ## 4. The load-bearing constraint
 
@@ -61,14 +61,14 @@ with a conservative, configurable interval and non-overlapping requests.
 
 Verified against current releases on 2026-07-31:
 
-| | |
-|---|---|
-| Companion | 5.1.0 |
-| `@companion-module/base` | 2.0.4 |
-| Node | `^22.20` |
-| TypeScript | `~6.0.3` |
-| Package manager | Yarn 4.17 |
-| Template | `companion-module-template-ts` |
+|                          |                                |
+| ------------------------ | ------------------------------ |
+| Companion                | 5.1.0                          |
+| `@companion-module/base` | 2.0.4                          |
+| Node                     | `^22.20`                       |
+| TypeScript               | `~6.0.3`                       |
+| Package manager          | Yarn 4.17                      |
+| Template                 | `companion-module-template-ts` |
 
 The template registers a module as a **default-exported class extending
 `InstanceBase`** with `init` / `destroy` / `configUpdated` / `getConfigFields`,
@@ -77,13 +77,13 @@ design follows that shape.
 
 ## 6. Module identity
 
-| Field | Value |
-|---|---|
-| Repository | `companion-module-rm-tallylights` (standalone; Companion requires one repo per module) |
-| Manifest `id` | `rm-tallylights` |
-| Name | RM Tally Lights |
-| Manufacturer | Rosnell Media Group |
-| Products | Tally Lights Manager |
+| Field         | Value                                                                                  |
+| ------------- | -------------------------------------------------------------------------------------- |
+| Repository    | `companion-module-rm-tallylights` (standalone; Companion requires one repo per module) |
+| Manifest `id` | `rm-tallylights`                                                                       |
+| Name          | RM Tally Lights                                                                        |
+| Manufacturer  | Rosnell Media Group                                                                    |
+| Products      | Tally Lights Manager                                                                   |
 
 ## 7. Architecture
 
@@ -117,30 +117,39 @@ these.
 
 ## 8. Configuration
 
-| Field | Type | Default |
-|---|---|---|
-| Master address | text (IP or hostname) | — |
-| Port | number | 80 |
-| Request timeout | number (ms) | 3000 |
+| Field           | Type                  | Default |
+| --------------- | --------------------- | ------- |
+| Master address  | text (IP or hostname) | —       |
+| Port            | number                | 80      |
+| Request timeout | number (ms)           | 10000   |
 
 No poll-interval field, because nothing polls.
+
+**Why 10000 and not something snappier.** `/allOff` and `/allIdle` loop over every
+camera on the master, and the firmware's `sendEspNowMessage` blocks ~100 ms per
+online camera and ~240 ms per offline one before the HTTP 200 is sent. Worst case
+— 32 cameras, all offline — is roughly 7.7 s. A shorter timeout aborts a command
+the master is in the middle of executing successfully, reports "unreachable",
+turns the connection red, and drops a client mid-response on the synchronous
+`WebServer` — the exact pressure §4 exists to avoid. The timeout is only ever
+waited out when something is genuinely wrong.
 
 ## 9. Actions
 
 Ten actions:
 
-| Action | Endpoint | Options |
-|---|---|---|
-| Set Camera Live | `/set_live_cam?cam=N` | camera picker |
-| Set Camera Preview | `/set_preview_cam?cam=N` | camera picker |
-| Set Camera Idle | `/set_idle_cam?cam=N` | camera picker |
-| Set Camera Off | `/set_off_cam?cam=N` | camera picker |
-| Set Live + Preview | `/update_display?live=X&preview=Y` | two pickers, each allowing *None* |
-| Auto (swap live/preview) | `/auto` | — |
-| All Cameras Idle | `/allIdle` | — |
-| All Cameras Off | `/allOff` | — |
-| Set On Air Lights On | `/onair_status?status=onair` | — |
-| Set On Air Lights Off | `/onair_status?status=offair` | — |
+| Action                   | Endpoint                           | Options                           |
+| ------------------------ | ---------------------------------- | --------------------------------- |
+| Set Camera Live          | `/set_live_cam?cam=N`              | camera picker                     |
+| Set Camera Preview       | `/set_preview_cam?cam=N`           | camera picker                     |
+| Set Camera Idle          | `/set_idle_cam?cam=N`              | camera picker                     |
+| Set Camera Off           | `/set_off_cam?cam=N`               | camera picker                     |
+| Set Live + Preview       | `/update_display?live=X&preview=Y` | two pickers, each allowing _None_ |
+| Auto (swap live/preview) | `/auto`                            | —                                 |
+| All Cameras Idle         | `/allIdle`                         | —                                 |
+| All Cameras Off          | `/allOff`                          | —                                 |
+| Set On Air Lights On     | `/onair_status?status=onair`       | —                                 |
+| Set On Air Lights Off    | `/onair_status?status=offair`      | —                                 |
 
 ### Camera picker
 
@@ -151,14 +160,19 @@ One reusable option builder used by every camera action:
   number the endpoints take as `cam=N`. The name is display only and is never
   sent.
 - A `Manual entry…` choice that reveals a 1–32 number field.
+- An `— select a camera —` sentinel, first in the list and the **default** for every
+  camera picker including both halves of `Set Live + Preview`. `resolveCam` returns
+  `null` for it, so a freshly dragged button that has never been configured logs a
+  warning and sends nothing. Without this, an untouched `Set Camera Live` would air
+  camera 1 and an untouched `Set Live + Preview` would black out every light.
 
 The manual option covers three cases with one control: the master being
 unreachable when the button is configured, a camera renamed in the web UI since
 the list was cached, and a power user who simply wants to enter a number.
 
-`Set Live + Preview` additionally offers *None*, mapping to `0`, matching the
+`Set Live + Preview` additionally offers _None_, mapping to `0`, matching the
 endpoint's own semantics. Two firmware behaviours to surface in the action's
-help text rather than reimplement: selecting *None* for both turns all cameras
+help text rather than reimplement: selecting _None_ for both turns all cameras
 off, and selecting the **same camera** for live and preview also turns all
 cameras off.
 
@@ -176,7 +190,7 @@ are pre-labelled and pre-wired, not state-reflecting.
 
 ```
 init() / configUpdated()
-   └─ GET /test              → InstanceStatus.Ok | ConnectionFailure
+   └─ GET /test              → Ok | ConnectionFailure (see below)
    └─ GET /api/cameras       → cache list, build dropdown choices
    └─ updateActions() + updatePresets()
 
@@ -189,13 +203,20 @@ status stays `Ok` — the master is reachable — and the picker falls back to
 numeric entry with only the names missing. Only a failure of `/test` itself sets
 `ConnectionFailure`.
 
+The `/test` probe must check the status **value**, not merely that a status came
+back. A non-2xx reply means something answered on that address but it is not an RM
+Tally Lights master — point the module at a printer or a router admin page and a
+404 would otherwise show a green connection on which every button silently fails.
+Report that case distinctly from unreachable, because the operator's next action
+differs: fix the network, versus fix the address.
+
 ## 11. Error handling
 
-| Situation | Response |
-|---|---|
+| Situation               | Response                                                                   |
+| ----------------------- | -------------------------------------------------------------------------- |
 | Network error / timeout | Log warning with the URL; set `ConnectionFailure`. **No automatic retry.** |
-| HTTP 400 | Log the master's plain-text reason verbatim; leave status `Ok` |
-| HTTP 200 | Debug log; if status was `ConnectionFailure`, clear it to `Ok` |
+| HTTP 400                | Log the master's plain-text reason verbatim; leave status `Ok`             |
+| HTTP 200                | Debug log; if status was `ConnectionFailure`, clear it to `Ok`             |
 
 Three deliberate choices:
 
@@ -217,7 +238,7 @@ cannot leave requests hanging.
 **Unit** — neither target needs Companion running:
 
 - `api.ts` — URL construction per action, parameter encoding, camera range
-  validation, `/update_display` *None* → `0` mapping.
+  validation, `/update_display` _None_ → `0` mapping.
 - `cameras.ts` — parsing `/api/cameras`, dropdown choice generation, fallback
   when the fetch fails.
 
