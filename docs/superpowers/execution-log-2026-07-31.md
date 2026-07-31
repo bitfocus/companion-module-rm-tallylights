@@ -304,3 +304,45 @@ Nothing was declined. Two things a reviewer should know:
    the warning, where it used to be 3 s. That is the intended trade — a false "unreachable"
    on a command the master actually executed is worse — but it should be on the record for
    the hardware pass.
+
+## Task 7 — hardware verification (2026-07-31)
+
+**PASSED.** The module was accepted and configured in Companion without
+difficulty and all functionality behaved as expected. `Set On Air Lights On`
+audibly clicked the relay and lit the Cabina Sonido light, proving the full
+chain: Companion → module → master → ESP-NOW → relay.
+
+All ten endpoints were additionally verified directly against the master at
+192.168.0.76, bypassing the module, to establish a known-good hardware baseline:
+
+| Check                                                               | Result                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `/test`                                                             | `RM Server Working!` — confirms the reflash landed             |
+| `set_live_cam` / `set_preview_cam` / `set_idle_cam` / `set_off_cam` | 200, correct mode each time                                    |
+| `auto`                                                              | `Switched: Camera 1 (preview->live), Camera 2 (live->preview)` |
+| `allIdle` / `allOff`                                                | `sent to 2/2 cameras`                                          |
+| `update_display?live=2&preview=1`                                   | `Preview=1, Live=2`                                            |
+| `update_display?live=1&preview=1`                                   | `All cameras turned off (live and preview were the same)`      |
+| `onair_status` onair/offair                                         | 200; `/api/status` flipped `offair` → `onair` → `offair`       |
+| `set_live_cam?cam=99`                                               | `400 Camera number must be between 1 and 32`                   |
+| `onair_status?status=bogus`                                         | `400 status must be 'onair' or 'offair'`                       |
+
+Both 400 bodies match the `test/api.test.ts` fixtures verbatim — those strings
+were written from the firmware source and are now confirmed against the running
+device.
+
+Device state was captured before testing and restored afterwards (cam1 live,
+cam2 idle, offair).
+
+### Firmware behaviour discovered during verification
+
+`set_live_cam` is **not exclusive**: setting camera 2 live left camera 1 live as
+well. These are per-camera commands, so `/update_display` is the only action that
+produces a clean live/preview pair. Not a defect, but it shapes how buttons
+should be built.
+
+### Not explicitly confirmed
+
+- Whether the `Manual entry…` number field hides and shows correctly via
+  `isVisibleExpression` (Task 7 Step 3b). Cosmetic if wrong.
+- Offline degradation with the master powered off.
