@@ -1,0 +1,28 @@
+{
+	"$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+	"type": "connection",
+	"id": "rm-tallylights",
+	"name": "rm-tallylights",
+	"shortname": "RM Tally Lights",
+	"description": "Control RM Tally Lights camera tally and On Air lights",
+	"version": "1.0.0",
+	"license": "MIT",
+	"repository": "https://github.com/rocampocr/companion-module-rm-tallylights",
+	"bugs": "https://github.com/rocampocr/companion-module-rm-tallylights/issues",
+	"maintainers": [
+		{
+			"name": "Your name",
+			"email": "Your email"
+		}
+	],
+	"runtime": {
+		"type": "node22",
+		"api": "nodejs-ipc",
+		"apiVersion": "0.0.0",
+		"entrypoint": "../dist/main.js"
+	},
+	"legacyIds": [],
+	"manufacturer": "Rosnell Media Group",
+	"products": ["Tally Lights Manager"],
+	"keywords": ["tally", "onair", "esp32"]
+}
