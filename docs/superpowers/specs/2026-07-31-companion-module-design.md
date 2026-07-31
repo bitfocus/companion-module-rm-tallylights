@@ -20,7 +20,7 @@ ask of a regular Companion user.
 
 This module replaces hand-typed URLs with named actions in Companion's action
 dropdown, so an operator building a button that also drives OBS and an ATEM can
-pick **RM Tally Lights → Set On Air** from a list.
+pick **RM Tally Lights → Set On Air Lights On** from a list.
 
 ## 2. Goals
 
@@ -35,7 +35,7 @@ pick **RM Tally Lights → Set On Air** from a list.
 |---|---|
 | Feedbacks (buttons reflecting state) | Requires polling. Deferred to v2 — see §4. |
 | Companion variables | Without reads they can only report what was last *sent*, which silently goes stale. Misleading state on an on-air indicator is the worst failure mode available. |
-| Toggle On Air | Master has no toggle endpoint, and without feedbacks a toggle button cannot show its state. Explicit Set On Air / Set Off Air matches the existing OBS start/stop trigger model. |
+| Toggle On Air | Master has no toggle endpoint, and without feedbacks a toggle button cannot show its state. Explicit Set On Air Lights On / Off matches the existing OBS start/stop trigger model. |
 | Management endpoints (camera add/remove/rename, export/import settings) | Setup tasks nobody performs from a control surface. |
 | `/reset_wifi` | Clears the master's WiFi credentials and restarts it. One mispress takes the rig off the network mid-show. Belongs in the web UI only. |
 | `/set_color` | Sets *camera #1's matrix only*, not a global colour. The name would mislead; it reads as a debug endpoint rather than show control. |
@@ -136,8 +136,8 @@ Ten actions:
 | Auto (swap live/preview) | `/auto` | — |
 | All Cameras Idle | `/allIdle` | — |
 | All Cameras Off | `/allOff` | — |
-| Set On Air | `/onair_status?status=onair` | — |
-| Set Off Air | `/onair_status?status=offair` | — |
+| Set On Air Lights On | `/onair_status?status=onair` | — |
+| Set On Air Lights Off | `/onair_status?status=offair` | — |
 
 ### Camera picker
 
@@ -165,7 +165,7 @@ buttons keep working correctly. It will be documented in the module README.
 
 ### Presets
 
-Ready-to-drag buttons: `ON AIR`, `OFF AIR`, `AUTO`, `ALL OFF`, and a
+Ready-to-drag buttons: `ON AIR`, `OFF AIR`, `AUTO`, `ALL OFF`, `ALL IDLE` and a
 Live/Preview pair for each camera in the cache. With no feedbacks in v1 these
 are pre-labelled and pre-wired, not state-reflecting.
 
