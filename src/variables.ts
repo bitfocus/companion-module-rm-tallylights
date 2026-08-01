@@ -1,5 +1,6 @@
 import { isOnAir, type ModuleState } from './state.js'
 import type { Camera } from './cameras.js'
+import type ModuleInstance from './main.js'
 
 export type VariablesSchema = {
 	live_cam: string
@@ -45,4 +46,8 @@ export function variableValues(state: ModuleState, cameras: Camera[]): Variables
 		preview_cam_name: nameFor(preview, cameras),
 		onair: isOnAir(state) ? 'onair' : 'offair',
 	}
+}
+
+export function UpdateVariables(self: ModuleInstance): void {
+	self.setVariableDefinitions(VARIABLE_DEFINITIONS)
 }

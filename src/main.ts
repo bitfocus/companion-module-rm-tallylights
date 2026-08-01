@@ -5,17 +5,17 @@ import { UpdateActions, type ActionsSchema } from './actions.js'
 import { UpdatePresets } from './presets.js'
 import { apiGet, type ApiTarget } from './api.js'
 import { fetchCameras, type Camera } from './cameras.js'
+import { UpdateFeedbacks, type FeedbacksSchema } from './feedbacks.js'
+import { UpdateVariables, variableValues, type VariablesSchema } from './variables.js'
+import { StateSocket } from './socket.js'
+import { initialState, applySnapshot, setConnected, hasUnknownCamera, type ModuleState } from './state.js'
 
 export type ModuleSchema = {
 	config: ModuleConfig
 	secrets: undefined
 	actions: ActionsSchema
-	// v1 has no feedbacks or variables. These keys are required by the
-	// @companion-module/base InstanceTypes constraint (InstanceBase<TManifest
-	// extends InstanceTypes>), so they stay as empty records rather than being
-	// removed outright.
-	feedbacks: Record<string, never>
-	variables: Record<string, never>
+	feedbacks: FeedbacksSchema
+	variables: VariablesSchema
 }
 
 export { UpgradeScripts }
@@ -23,6 +23,8 @@ export { UpgradeScripts }
 export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	config!: ModuleConfig // Setup in init()
 	private cameras: Camera[] = []
+	private state: ModuleState = initialState
+	private socket: StateSocket | null = null
 
 	constructor(internal: unknown) {
 		super(internal)
@@ -34,6 +36,10 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	}
 	// When module gets deleted
 	async destroy(): Promise<void> {
+		// Companion destroys and recreates an instance on every config change, so a
+		// leaked socket or reconnect timer per edit is a real leak in a
+		// long-running process. v1's destroy() only logged because v1 held nothing.
+		this.stopSocket()
 		this.log('debug', 'destroy')
 	}
 
@@ -46,6 +52,10 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	 * Exactly two requests. Nothing polls — see the v1 design spec, section 4.
 	 */
 	private async connect(): Promise<void> {
+		// connect() runs from init() and from configUpdated(); without this, editing
+		// the host leaves a socket connected to the old one.
+		this.stopSocket()
+
 		this.updateStatus(InstanceStatus.Connecting)
 
 		const target = this.getApiTarget()
@@ -75,6 +85,10 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 
 		this.updateActions()
 		this.updatePresets()
+		this.updateFeedbacks()
+		this.updateVariables()
+		this.pushState()
+		this.startSocket()
 	}
 
 	// Return config fields for web config
@@ -94,10 +108,14 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		return this.cameras
 	}
 
+	getState(): ModuleState {
+		return this.state
+	}
+
 	/**
-	 * Fire-and-forget command. Deliberately does not retry: the master runs a
-	 * synchronous web server that wedges under connection pressure, so a
-	 * visibly failed press the operator can repeat beats hammering the device.
+	 * Fire-and-forget command. Deliberately does not retry: a visibly failed
+	 * press the operator can repeat is better than a silent retry storm during a
+	 * show, and the state socket reports the master's real state either way.
 	 */
 	async sendCommand(path: string, params: Record<string, string | number> = {}): Promise<void> {
 		const target = this.getApiTarget()
@@ -136,5 +154,74 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 
 	updatePresets(): void {
 		UpdatePresets(this)
+	}
+
+	private startSocket(): void {
+		const { host, port } = this.config
+		if (!host) {
+			this.log('info', 'No master address configured — feedbacks and variables will stay inactive')
+			return
+		}
+
+		this.socket = new StateSocket(`ws://${host}:${port}/ws`, {
+			onSnapshot: (snapshot) => {
+				this.state = applySnapshot(this.state, snapshot)
+
+				// The snapshot carries ids, not names. An id we have never seen means
+				// the cached camera list is stale -- refresh it so live_cam_name and
+				// the picker's labels catch up.
+				if (
+					hasUnknownCamera(
+						this.state,
+						this.cameras.map((c) => c.id),
+					)
+				) {
+					void this.refreshCameras()
+				}
+
+				this.pushState()
+			},
+			onConnected: (connected) => {
+				this.state = setConnected(this.state, connected)
+				this.pushState()
+			},
+			log: (level, message) => this.log(level, message),
+		})
+		this.socket.start()
+	}
+
+	private stopSocket(): void {
+		if (this.socket) {
+			this.socket.stop()
+			this.socket = null
+		}
+	}
+
+	/**
+	 * Re-reads the camera list after the master reports an id we do not know,
+	 * then rebuilds everything whose labels depend on it.
+	 */
+	private async refreshCameras(): Promise<void> {
+		const cameras = await fetchCameras(this.getApiTarget())
+		if (cameras.length === 0) return
+		this.cameras = cameras
+		this.updateActions()
+		this.updateFeedbacks()
+		this.updatePresets()
+		this.pushState()
+	}
+
+	/** Pushes the current state into Companion. Cheap enough to call on every frame. */
+	private pushState(): void {
+		this.checkFeedbacks('camera_live', 'camera_preview', 'onair', 'connected')
+		this.setVariableValues(variableValues(this.state, this.cameras))
+	}
+
+	updateFeedbacks(): void {
+		UpdateFeedbacks(this)
+	}
+
+	updateVariables(): void {
+		UpdateVariables(this)
 	}
 }
