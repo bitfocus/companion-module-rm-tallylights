@@ -102,10 +102,10 @@ _Reversal cost: trivial._
 | `onair`            | `onair`       | Literally `onair` or `offair`, as the master reports it |
 
 `live_cam` and `preview_cam` come straight from the snapshot's `live` and
-`preview`. Those are **derived** by the firmware from per-camera modes rather
-than read from its internal trackers (firmware spec D0), which is what
-guarantees `live_cam` can never name a camera that `camera_live` says is not
-live. The module does not need to reconcile anything; take the values as given.
+`preview`. The firmware derives those from per-camera modes (firmware spec D0,
+which also deletes the partially-maintained globals that would otherwise have
+supplied them), so `live_cam` can never name a camera that `camera_live` says
+is not live. The module reconciles nothing; take the values as given.
 
 Per-camera mode variables (`camera_2_mode` and so on) were considered and
 **dropped**. They would mean a variable set that changes shape whenever a
