@@ -8,3 +8,4 @@ DEBUG-*
 /.vscode
 .worktrees/
 .DS_Store
+.superpowers/
