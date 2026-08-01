@@ -26,6 +26,14 @@ export type FeedbacksSchema = {
  * shared camera picker rather than reimplemented -- the picker's digit-only
  * guard exists because a blank dropdown once resolved to camera 0 and sent a
  * real command, and a second control is how that returns.
+ *
+ * Deliberately independent of `cameraOptions` in actions.ts (that one is
+ * unexported and generic over the action field's id prefix, which this
+ * feedback union doesn't need), but the two field shapes -- id, type,
+ * default, disableAutoExpression, isVisibleExpression syntax -- must stay in
+ * sync by hand. A change to either (e.g. how visibility expressions are
+ * written, or which field disables auto-expression) needs the same change in
+ * the other.
  */
 export function feedbackCameraOptions(choices: Choice[]): SomeCompanionFeedbackInputField<'cam' | 'cam_manual'>[] {
 	return [
@@ -52,7 +60,7 @@ export function feedbackCameraOptions(choices: Choice[]): SomeCompanionFeedbackI
 			max: MAX_CAM,
 			// base 2.x has no callback-style isVisible; visibility is an expression
 			// string evaluated in the UI.
-			isVisibleExpression: `$(options:${'cam'}) == '${MANUAL}'`,
+			isVisibleExpression: `$(options:cam) == '${MANUAL}'`,
 		},
 	]
 }

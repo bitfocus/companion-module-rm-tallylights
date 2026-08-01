@@ -23,17 +23,24 @@ const SNAP: StateSnapshot = {
  * Minimal stand-in for ModuleInstance. Only the three members the feedback
  * definitions touch are implemented; the cast keeps the test free of a full
  * Companion mock, which this repo deliberately avoids.
+ *
+ * `getState` reads a mutable binding rather than closing over the `state`
+ * parameter directly, and `setState` swaps it after `UpdateFeedbacks` has
+ * already run. Without this, a regression that hoisted `self.getState()` to
+ * the top of `UpdateFeedbacks` -- freezing every tally at whatever state
+ * existed when definitions were built -- would pass every test here.
  */
 function fakeSelf(state = initialState, cameras = CAMERAS) {
+	let current = state
 	const captured: { defs?: Record<string, any> } = {}
 	const self = {
-		getState: () => state,
+		getState: () => current,
 		getCameras: () => cameras,
 		setFeedbackDefinitions: (defs: Record<string, any>) => {
 			captured.defs = defs
 		},
 	}
-	return { self: self as any, captured }
+	return { self: self as any, captured, setState: (next: typeof state) => (current = next) }
 }
 
 function definitions(state = initialState, cameras = CAMERAS) {
@@ -90,7 +97,12 @@ describe('camera_live', () => {
 		expect(await defs.camera_live.callback(evt('2'), ctx)).toBe(false)
 	})
 
-	it('is false for an unconfigured picker rather than matching camera 0', async () => {
+	// Named for what this actually proves: SNAP has no camera id 0, so a
+	// resolveCam with no digit-only guard would still land on null here via the
+	// MIN_CAM range check, not the guard. This only pins "unconfigured or blank
+	// input is inert"; the guard itself (rejecting '0x3', ' 3 ', etc.) is
+	// exhaustively covered in camera-picker.test.ts and isn't re-tested here.
+	it('is false for an unconfigured picker or a blank selection', async () => {
 		const defs = definitions(applySnapshot(initialState, SNAP))
 		expect(await defs.camera_live.callback(evt(UNSET), ctx)).toBe(false)
 		expect(await defs.camera_live.callback(evt(''), ctx)).toBe(false)
@@ -101,6 +113,16 @@ describe('camera_live', () => {
 		expect(await defs.camera_live.callback(evt(MANUAL, 2), ctx)).toBe(true)
 		expect(await defs.camera_live.callback(evt(MANUAL, 1), ctx)).toBe(false)
 	})
+
+	it('reads state at call time, not at definition time', async () => {
+		const { self, captured, setState } = fakeSelf(initialState)
+		UpdateFeedbacks(self)
+		const defs = captured.defs!
+		expect(await defs.camera_live.callback(evt('2'), ctx)).toBe(false)
+		// No second UpdateFeedbacks call: the definitions must see the new state.
+		setState(applySnapshot(initialState, SNAP))
+		expect(await defs.camera_live.callback(evt('2'), ctx)).toBe(true)
+	})
 })
 
 describe('camera_preview', () => {
@@ -108,6 +130,25 @@ describe('camera_preview', () => {
 		const defs = definitions(applySnapshot(initialState, SNAP))
 		expect(await defs.camera_preview.callback(evt('1'), ctx)).toBe(true)
 		expect(await defs.camera_preview.callback(evt('2'), ctx)).toBe(false)
+	})
+
+	it('is false before any snapshot arrives', async () => {
+		const defs = definitions()
+		expect(await defs.camera_preview.callback(evt('1'), ctx)).toBe(false)
+	})
+
+	// See the equivalent camera_live test for why this is titled this way
+	// rather than claiming to pin the digit-only guard.
+	it('is false for an unconfigured picker or a blank selection', async () => {
+		const defs = definitions(applySnapshot(initialState, SNAP))
+		expect(await defs.camera_preview.callback(evt(UNSET), ctx)).toBe(false)
+		expect(await defs.camera_preview.callback(evt(''), ctx)).toBe(false)
+	})
+
+	it('honours manual entry', async () => {
+		const defs = definitions(applySnapshot(initialState, SNAP))
+		expect(await defs.camera_preview.callback(evt(MANUAL, 1), ctx)).toBe(true)
+		expect(await defs.camera_preview.callback(evt(MANUAL, 2), ctx)).toBe(false)
 	})
 })
 
