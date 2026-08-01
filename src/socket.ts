@@ -46,6 +46,11 @@ export function parseStateFrame(raw: unknown): StateSnapshot | null {
 	for (const entry of frame.cameras) {
 		if (typeof entry !== 'object' || entry === null) return null
 		const { id, mode } = entry as Record<string, unknown>
+		// Deliberately lenient: ids are not range-checked against the protocol's
+		// 1-32. Rejecting the whole snapshot over one out-of-range id would blank
+		// tally for every camera, which is worse than carrying an odd id, and the
+		// firmware now bounds ids at every write and index site so this should
+		// not occur in practice. Do not "fix" this without re-reading this note.
 		if (!Number.isInteger(id)) return null
 		if (typeof mode !== 'string' || !MODES.includes(mode as CameraMode)) return null
 		cameras.push({ id: id as number, mode: mode as CameraMode })
@@ -79,6 +84,10 @@ export class StateSocket {
 
 	start(): void {
 		this.stopped = false
+		// A stop()/start() cycle (e.g. a Companion config edit) should reconnect
+		// at the fast interval, not wherever a prior outage had walked the
+		// backoff up to.
+		this.retryMs = RECONNECT_MIN_MS
 		this.open()
 	}
 
@@ -88,6 +97,12 @@ export class StateSocket {
 	 */
 	stop(): void {
 		this.stopped = true
+		// Only report a transition if there was actually a connection or a
+		// pending retry to tear down. Task 5's handler calls checkFeedbacks()
+		// from here, and during Companion's destroy() that can run against an
+		// instance already being torn down -- calling it when stop() had
+		// nothing to do (never started, or called twice) is needless risk.
+		const hadSomethingToStop = this.socket !== null || this.timer !== null
 		if (this.timer !== null) {
 			clearTimeout(this.timer)
 			this.timer = null
@@ -106,11 +121,17 @@ export class StateSocket {
 			}
 			this.socket = null
 		}
-		this.handlers.onConnected(false)
+		if (hadSomethingToStop) {
+			this.handlers.onConnected(false)
+		}
 	}
 
 	private open(): void {
 		if (this.stopped) return
+		// Idempotent: a second start() must not strand the first socket with its
+		// handlers still attached. The reconnect path always nulls this.socket in
+		// onclose before calling open(), so this never blocks a legitimate retry.
+		if (this.socket !== null) return
 
 		let socket: WebSocket
 		try {
