@@ -79,39 +79,55 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 		// elsewhere -- reset unconditionally, since connect() only runs on init()
 		// and on a config save.
 		this.state = initialState
+		// A blacklist built against the previous master must not carry over to a
+		// new one.
+		this.unresolvedCameraIds.clear()
 
 		this.updateStatus(InstanceStatus.Connecting)
 
 		const target = this.getApiTarget()
 		const probe = await apiGet(target, '/test')
 
+		// Everything below is held in locals rather than written to instance state
+		// directly: a later connect() (an overlapping config edit) or destroy() may
+		// have already superseded this run by the time either await below settles,
+		// and nothing observable -- status, cameras, log -- may be touched until
+		// the guard after the second await confirms this run is still current.
+		let status: [InstanceStatus, string?]
+		let cameras: Camera[]
+		let noCameraList = false
+
 		if (probe.status === null) {
-			this.updateStatus(InstanceStatus.ConnectionFailure, 'Master unreachable')
-			this.cameras = []
+			status = [InstanceStatus.ConnectionFailure, 'Master unreachable']
+			cameras = []
 		} else if (!probe.ok) {
 			// Something answered, but not an RM Tally Lights master — a router admin
 			// page or a printer will 404 /test. Distinct from "unreachable" because
 			// it calls for a different fix: check the address, not the network.
-			this.updateStatus(
+			status = [
 				InstanceStatus.ConnectionFailure,
 				`Unexpected response from /test (HTTP ${probe.status}) — is this an RM Tally Lights master?`,
-			)
-			this.cameras = []
+			]
+			cameras = []
 		} else {
-			this.updateStatus(InstanceStatus.Ok)
+			status = [InstanceStatus.Ok]
 			// A camera-list failure is not a connection failure: the master
 			// answered the probe, so we stay Ok and fall back to manual entry.
-			this.cameras = await fetchCameras(target)
-			if (this.cameras.length === 0) {
-				this.log('info', 'No camera list available — actions will use manual camera entry')
-			}
+			cameras = await fetchCameras(target)
+			noCameraList = cameras.length === 0
 		}
 
 		// Superseded by a later connect() that started before this one finished, or
 		// the instance was destroyed while these awaits were pending -- either way,
-		// acting now would run against stale results on a stale or torn-down
-		// instance.
+		// committing the locals above now would show stale status/cameras over a
+		// working connection, or write to a torn-down instance.
 		if (this.destroyed || generation !== this.connectGeneration) return
+
+		this.updateStatus(...status)
+		this.cameras = cameras
+		if (noCameraList) {
+			this.log('info', 'No camera list available — actions will use manual camera entry')
+		}
 
 		this.updateActions()
 		this.updatePresets()
@@ -257,13 +273,17 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 				this.updateFeedbacks()
 				this.updatePresets()
 				this.pushState()
-			}
 
-			// Whatever this refresh did not resolve must not trigger another one.
-			// Cleared on reconnect, so a camera genuinely added later is picked up.
-			const ids = this.cameras.map((c) => c.id)
-			for (const id of triggeredBy) {
-				if (!ids.includes(id)) this.unresolvedCameraIds.add(id)
+				// Whatever this successful refresh did not resolve must not trigger
+				// another one. Only recorded on success: fetchCameras() also returns []
+				// on a failed request (cameras.ts), and a camera dropping out because
+				// the request timed out -- entirely possible against a master mid
+				// /allOff/allIdle -- must retry on the next snapshot, not be blacklisted
+				// from one failed attempt. Cleared on reconnect, so a camera genuinely
+				// added or renamed later is picked up.
+				for (const id of triggeredBy) {
+					if (!this.cameras.some((c) => c.id === id)) this.unresolvedCameraIds.add(id)
+				}
 			}
 		} finally {
 			this.refreshInFlight = false

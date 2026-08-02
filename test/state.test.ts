@@ -7,7 +7,6 @@ import {
 	isLive,
 	isPreview,
 	isOnAir,
-	hasUnknownCamera,
 	type StateSnapshot,
 } from '../src/state.js'
 
@@ -99,25 +98,5 @@ describe('isLive / isPreview / isOnAir', () => {
 		expect(isOnAir(s)).toBe(true)
 		expect(isOnAir(applySnapshot(s, { ...SNAP, onair: 'offair' }))).toBe(false)
 		expect(isOnAir(initialState)).toBe(false)
-	})
-})
-
-describe('hasUnknownCamera', () => {
-	const s = applySnapshot(initialState, SNAP)
-
-	it('is false when every camera in the snapshot is known', () => {
-		expect(hasUnknownCamera(s, [1, 2])).toBe(false)
-	})
-
-	it('is false when the module knows about extra cameras', () => {
-		expect(hasUnknownCamera(s, [1, 2, 3])).toBe(false)
-	})
-
-	it('is true when the snapshot mentions a camera the module has not seen', () => {
-		expect(hasUnknownCamera(s, [1])).toBe(true)
-	})
-
-	it('is false before any snapshot has arrived', () => {
-		expect(hasUnknownCamera(initialState, [])).toBe(false)
 	})
 })

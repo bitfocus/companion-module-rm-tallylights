@@ -64,12 +64,3 @@ export function isPreview(state: ModuleState, camId: number): boolean {
 export function isOnAir(state: ModuleState): boolean {
 	return state.snapshot?.onair === 'onair'
 }
-
-/**
- * True when the master reports a camera the module has no name for — which
- * means its cached camera list is stale and should be re-fetched.
- */
-export function hasUnknownCamera(state: ModuleState, knownIds: number[]): boolean {
-	if (!state.snapshot) return false
-	return state.snapshot.cameras.some((c) => !knownIds.includes(c.id))
-}
