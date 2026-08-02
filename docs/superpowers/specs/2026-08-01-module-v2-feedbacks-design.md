@@ -237,11 +237,16 @@ reverted to `0` / empty on reset; and `stop()` exited the process immediately,
 proving no reconnect timer leaked. The firmware's own `ws-check` passed 7/7
 against the same device.
 
-**Not yet verified — needs Companion and the owner.** Presets showing state
-unwired, a variable rendering on a button label, **Master is Connected**
-recovering from a master reboot without a Companion restart, and editing the
-connection host without leaving a duplicate socket. That last one exercises the
-races §11.1 describes.
+**Verified in Companion by the owner, on the production rig, 2026-08-01.**
+Reported working: the module installed and connected, variables update as
+expected, and the feedbacks work well. Tally and On Air behave correctly against
+real hardware.
+
+Installation note for anyone repeating this: Companion 4.2+ removed the
+developer-modules path from Settings → General. Either use the **Modules** page's
+_Import module package_ button with the built `.tgz`, or enable **Developer
+Modules** and point it at the folder _containing_ module folders — not at the
+module folder itself, and not at the packaged output.
 
 ### 11.1 What review caught that the tests did not
 
