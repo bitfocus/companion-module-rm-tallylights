@@ -29,6 +29,12 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	// Guards a slow connect() against being superseded by a later one (an
 	// overlapping config edit) or outliving destroy() -- see connect() below.
 	private connectGeneration = 0
+	// Cleared only in the finally of the call that set it true -- never by
+	// connect(). That keeps "at most one fetchCameras() in flight" an invariant
+	// regardless of an intervening config edit: a stale call's own finally still
+	// runs (fetchCameras respects the configured timeout, so it cannot wedge
+	// this permanently), while a reset from connect() would let a second refresh
+	// start concurrently with one connect() didn't know was still pending.
 	private refreshInFlight = false
 	/** Ids the master has reported that a refresh failed to resolve. Prevents a
 	 *  camera the list will never contain from re-triggering a fetch every frame. */
@@ -267,10 +273,14 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	private async refreshCameras(triggeredBy: number[] = []): Promise<void> {
 		if (this.refreshInFlight) return
 		this.refreshInFlight = true
+		// Same guard connect() uses: a refresh started against the previous master
+		// must not commit its result over the current one's.
+		const generation = this.connectGeneration
 		try {
 			const cameras = await fetchCameras(this.getApiTarget())
-			// The instance may have been torn down while this await was pending.
-			if (this.destroyed) return
+			// The instance may have been torn down, or superseded by a later
+			// connect() (an overlapping config edit), while this await was pending.
+			if (this.destroyed || generation !== this.connectGeneration) return
 
 			if (cameras.length > 0) {
 				this.cameras = cameras

@@ -144,6 +144,13 @@ the **On Air is On** feedback — **OFF AIR** inverted, so it lights while the
 On Air light is _off_ rather than on. Dragging any of those onto a button shows
 state immediately, with no feedback to add by hand.
 
+Because it is inverted, **OFF AIR** also lights when the module has no
+connection to the master at all — pre-v1.3.0 firmware, a blocked port, or a
+master that has simply never answered — since with nothing to go on, "on air"
+reads as false and inverting false lights the button. It reports "not on air",
+which is what it knows. Pair it with **Master is Connected** if telling those
+two apart matters to you.
+
 **AUTO**, **ALL OFF** and **ALL IDLE** carry no feedback: they are momentary
 commands with no state of their own to report.
 
