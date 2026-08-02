@@ -1,5 +1,9 @@
 import { combineRgb } from '@companion-module/base'
-import type { CompanionPresetDefinitions, CompanionPresetSection } from '@companion-module/base'
+import type {
+	CompanionPresetDefinitions,
+	CompanionPresetSection,
+	CompanionPresetFeedback,
+} from '@companion-module/base'
 import type ModuleInstance from './main.js'
 import type { ModuleSchema } from './main.js'
 
@@ -20,19 +24,26 @@ export function UpdatePresets(self: ModuleInstance): void {
 		actionId: 'onair_on' | 'onair_off' | 'auto' | 'all_off' | 'all_idle',
 		bg: number,
 		fg: number,
+		feedbacks: CompanionPresetFeedback<ModuleSchema['feedbacks']>[] = [],
 	) => {
 		presets[id] = {
 			type: 'simple',
 			name: label,
 			style: { text: label, size: '14', color: fg, bgcolor: bg },
 			steps: [{ down: [{ actionId, options: {} }], up: [] }],
-			feedbacks: [],
+			feedbacks,
 		}
 		generalIds.push(id)
 	}
 
-	simple('onair_on', 'ON AIR', 'onair_on', RED, WHITE)
-	simple('onair_off', 'OFF AIR', 'onair_off', DARK, WHITE)
+	simple('onair_on', 'ON AIR', 'onair_on', RED, WHITE, [
+		{ feedbackId: 'onair', options: {}, style: { bgcolor: RED, color: WHITE } },
+	])
+	simple('onair_off', 'OFF AIR', 'onair_off', DARK, WHITE, [
+		// Inverted: this button should light when the light is OFF air, so the
+		// operator can see at a glance which state pressing it will leave them in.
+		{ feedbackId: 'onair', options: {}, style: { bgcolor: GREEN, color: WHITE }, isInverted: true },
+	])
 	simple('auto', 'AUTO', 'auto', DARK, WHITE)
 	simple('all_off', 'ALL OFF', 'all_off', BLACK, WHITE)
 	simple('all_idle', 'ALL IDLE', 'all_idle', DARK, WHITE)
@@ -49,7 +60,15 @@ export function UpdatePresets(self: ModuleInstance): void {
 					up: [],
 				},
 			],
-			feedbacks: [],
+			feedbacks: [
+				{
+					feedbackId: 'camera_live',
+					options: { cam: String(camera.id), cam_manual: camera.id },
+					// Required for a boolean feedback -- the preset type makes style
+					// non-optional when the feedback's type is 'boolean'.
+					style: { bgcolor: RED, color: WHITE },
+				},
+			],
 		}
 		cameraIds.push(liveId)
 
@@ -64,7 +83,13 @@ export function UpdatePresets(self: ModuleInstance): void {
 					up: [],
 				},
 			],
-			feedbacks: [],
+			feedbacks: [
+				{
+					feedbackId: 'camera_preview',
+					options: { cam: String(camera.id), cam_manual: camera.id },
+					style: { bgcolor: GREEN, color: WHITE },
+				},
+			],
 		}
 		cameraIds.push(previewId)
 	}

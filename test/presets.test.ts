@@ -30,7 +30,7 @@ let calls: Array<[string, Record<string, unknown>]>
  * Minimal stand-in for ModuleInstance, shared by both generators so the presets
  * are checked against the real action definitions rather than a copy.
  */
-function build(cameras: Camera[] = CAMERAS): void {
+function build(cameras: Camera[] = CAMERAS): { presets: Presets } {
 	calls = []
 	const self = {
 		getCameras: () => cameras,
@@ -49,6 +49,8 @@ function build(cameras: Camera[] = CAMERAS): void {
 
 	UpdateActions(self)
 	UpdatePresets(self)
+
+	return { presets }
 }
 
 function sectionIds(id: string): string[] | undefined {
@@ -166,5 +168,58 @@ describe('preset to action contract', () => {
 		const entries = allPresetActions()
 		expect(entries.find((entry) => entry.presetId === 'onair_on')?.actionId).toBe('onair_on')
 		expect(entries.find((entry) => entry.presetId === 'onair_off')?.actionId).toBe('onair_off')
+	})
+})
+
+describe('preset feedbacks', () => {
+	it('gives each camera Live preset a camera_live feedback for its own camera', () => {
+		const { presets } = build(CAMERAS)
+		// CAMERAS is [{ id: 1 }, { id: 3 }] (no camera 2); use id 3 so this checks
+		// a different camera than the Preview test below, against real fixture data.
+		const preset = presets['live_3']
+		expect(preset?.feedbacks).toHaveLength(1)
+		expect(preset?.feedbacks[0]).toMatchObject({
+			feedbackId: 'camera_live',
+			options: { cam: '3', cam_manual: 3 },
+		})
+		expect(preset?.feedbacks[0].style).toBeDefined()
+	})
+
+	it('gives each camera Preview preset a camera_preview feedback for its own camera', () => {
+		const { presets } = build(CAMERAS)
+		const preset = presets['preview_1']
+		expect(preset?.feedbacks).toHaveLength(1)
+		expect(preset?.feedbacks[0]).toMatchObject({
+			feedbackId: 'camera_preview',
+			options: { cam: '1', cam_manual: 1 },
+		})
+	})
+
+	it('gives both On Air presets the onair feedback', () => {
+		const { presets } = build(CAMERAS)
+		expect(presets['onair_on']?.feedbacks[0]).toMatchObject({ feedbackId: 'onair' })
+		expect(presets['onair_off']?.feedbacks[0]).toMatchObject({ feedbackId: 'onair' })
+	})
+
+	it('inverts the feedback on the OFF AIR preset so it lights when off air', () => {
+		const { presets } = build(CAMERAS)
+		expect(presets['onair_off']?.feedbacks[0]).toMatchObject({ isInverted: true })
+		expect(presets['onair_on']?.feedbacks[0].isInverted).toBeFalsy()
+	})
+
+	it('leaves the plain command presets without feedbacks', () => {
+		const { presets } = build(CAMERAS)
+		expect(presets['auto']?.feedbacks).toEqual([])
+		expect(presets['all_off']?.feedbacks).toEqual([])
+		expect(presets['all_idle']?.feedbacks).toEqual([])
+	})
+
+	it('gives every feedback entry a style, which boolean feedbacks require', () => {
+		const { presets } = build(CAMERAS)
+		for (const preset of Object.values(presets)) {
+			for (const fb of preset?.feedbacks ?? []) {
+				expect(fb.style).toBeDefined()
+			}
+		}
 	})
 })
