@@ -20,14 +20,15 @@ most ship with their feedback already attached.
 
 **Nothing is polled.** Saving the connection reads the camera list over HTTP, and
 each button press is one HTTP request. Against master firmware **v1.3.0 or
-newer**, the module also opens a single WebSocket that the master pushes a
-complete state snapshot over on connect and again on every change — that push
-channel is what drives the feedbacks and variables above. Against older firmware
-every action still works; the feedbacks and variables simply stay inactive. See
-`docs/superpowers/specs/` for the design rationale, and
-[HELP.md](./companion/HELP.md) for full user-facing behaviour, including camera
-name refresh timing and what happens during a master reboot or a dropped
-connection.
+newer**, the module also opens a single WebSocket that the master usually pushes
+a complete state snapshot over as soon as it opens, and again on every change —
+that push channel is what drives the feedbacks and variables above. (The master
+caps how many sockets it primes at once, so that "usually" has an exception; see
+HELP.md.) Against older firmware every action still works; the feedbacks and
+variables simply stay inactive. See `docs/superpowers/specs/` for the design
+rationale, and [HELP.md](./companion/HELP.md) for full user-facing behaviour,
+including camera name refresh timing and what happens during a master reboot,
+a dropped connection, or the master's WebSocket client cap.
 
 ## Getting started
 
@@ -43,10 +44,12 @@ While developing the module, by using `yarn dev` the compiler will be run in wat
 yarn test
 ```
 
-The HTTP, camera-list, and camera-picker layers are deliberately free of any
-Companion dependency so they can be unit tested in isolation. The action and
-preset definitions are tested through a stub instance, which pins the cross-file
-contracts — option ids, action ids, and the action ids referenced by presets.
+The HTTP (`api`), camera-list (`cameras`), camera-picker, state-tracking
+(`state`), and WebSocket frame-parsing (`socket`) layers are deliberately free
+of any Companion dependency so they can be unit tested in isolation. The
+action, feedback, preset, and variable definitions are tested through a stub
+instance, which pins the cross-file contracts — option ids, action and
+feedback ids, and the ids referenced by presets.
 
 ## Packaging
 

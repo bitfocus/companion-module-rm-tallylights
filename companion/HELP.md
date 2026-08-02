@@ -24,10 +24,13 @@ camera names, then it opens a single WebSocket to the master, whose connect
 handler reads the camera list a second time in case anything changed while
 the module was offline. That is one request against an unreachable master
 (just the probe), and two against firmware older than v1.3.0, since there is
-no socket to reconnect over. Once the socket does open, it pushes a complete
-state snapshot immediately and again whenever anything changes, so **nothing
-is polled after that** — one persistent connection replaces what would
-otherwise be a request every couple of seconds.
+no socket to reconnect over. Once the socket does open, it usually pushes a
+complete state snapshot immediately, and again whenever anything changes, so
+**nothing is polled after that** — one persistent connection replaces what
+would otherwise be a request every couple of seconds. ("Usually": the master
+caps how many sockets it primes at once — see the client-cap note under
+**Feedbacks** below for the exception and what it means for feedbacks,
+variables and camera names.)
 
 If the socket has never managed to open at all — an older master, a blocked
 port — every action still works exactly as before, and feedbacks and
@@ -39,9 +42,10 @@ module deliberately keeps the last snapshot it received rather than blanking
 it, on the basis that a stale tally is more useful mid-show than a dark one:
 **Camera is Live**, **Camera is Preview**, **On Air is On** and their matching
 variables keep reporting whatever they last knew. Only **Master is Connected**
-reflects the drop immediately; the rest catch up on the next successful
-reconnect. Actions are unaffected either way, since they never depended on the
-socket.
+reflects the drop immediately; the rest usually catch up on the next
+successful reconnect (see the client-cap note under **Feedbacks** for the case
+where even that reconnect is delayed). Actions are unaffected either way,
+since they never depended on the socket.
 
 ### Don't lower the timeout much
 
@@ -96,12 +100,19 @@ someone opens the master's own web UI in a browser partway through and a fifth
 tab's, which shows up as **Master is Connected** flapping even though nothing
 is actually wrong.
 
-It reconnects on its own, but if the master is still at the cap when it does,
-the firmware skips priming that reconnect: **Master is Connected** goes true
-immediately, while the other feedbacks and variables hold whatever they last
-knew — rather than refreshing right away — until the next real state change
-arrives. Closing unused browser tabs on the master's web UI reduces how often
-any of this happens.
+The same cap can also bite on the very first connect, not only a reconnect: if
+four of the master's own tabs are already open when you save the connection,
+the module's socket arrives as the fifth and the firmware skips priming it.
+Either way, an unprimed socket still flips **Master is Connected** true
+immediately — the WebSocket's "open" event fires whether or not a first frame
+follows — while the tally feedbacks (**Camera is Live**, **Camera is Preview**,
+**On Air is On**) and the variables that mirror them hold whatever they last
+knew until the next real state change arrives. Camera _names_ are the
+exception: the module re-reads the camera list over a plain HTTP request on
+every reconnect, independently of whether the socket was primed, so dropdown
+labels, preset labels and `live_cam_name`/`preview_cam_name` refresh
+immediately even while the tally numbers do not. Closing unused browser tabs
+on the master's web UI reduces how often any of this happens.
 
 Requires master firmware **v1.3.0 or newer**. Against older firmware the actions
 work and the feedbacks stay inactive.
@@ -170,12 +181,12 @@ change when you press a button, check the Companion log and then the camera.
 
 ## Status indicator
 
-| Colour                      | Meaning                                                                            |
-| --------------------------- | ---------------------------------------------------------------------------------- |
-| Green                       | Master answered                                                                    |
-| Red — "unreachable"         | Nothing answered at that address                                                   |
-| Red — "unexpected response" | Something answered but it is not an RM Tally Lights master; check the address      |
-| Red — no message            | An action timed out waiting for a reply — see "Don't lower the timeout much" above |
+| Colour                      | Meaning                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Green                       | Master answered                                                                                                           |
+| Red — "unreachable"         | Nothing answered at that address                                                                                          |
+| Red — "unexpected response" | Something answered but it is not an RM Tally Lights master; check the address                                             |
+| Red — no message            | An action got no reply at all — a timeout, or the master going away mid-command; see "Don't lower the timeout much" above |
 
 This dot is set once when the connection is saved and again after every
 action's result — never on a timer — so a red dot clears as soon as the next
