@@ -16,16 +16,18 @@ firmware v1.3.0, its WebSocket state channel.
 | **Port**            | `80` unless you have changed it                                    |
 | **Request timeout** | `10000` ms by default — see the note below before lowering it      |
 
-When you save the connection the module makes three HTTP requests: a probe to
-`/test` to confirm the master is reachable — the same probe the **Status
-indicator** section below reports on — then a read of your camera list so
-actions and feedbacks can show real camera names, then it opens a single
-WebSocket to the master, whose connect handler reads the camera list a second
-time in case anything changed while the module was offline. Once open, the
-socket pushes a complete state snapshot immediately and again whenever
-anything changes, so **nothing is polled after that** — one persistent
-connection replaces what would otherwise be a request every couple of
-seconds.
+When you save the connection the module makes up to three HTTP requests: a
+probe to `/test` to confirm the master is reachable — the same probe the
+**Status indicator** section below reports on — then, if the master
+answered, a read of your camera list so actions and feedbacks can show real
+camera names, then it opens a single WebSocket to the master, whose connect
+handler reads the camera list a second time in case anything changed while
+the module was offline. That is one request against an unreachable master
+(just the probe), and two against firmware older than v1.3.0, since there is
+no socket to reconnect over. Once the socket does open, it pushes a complete
+state snapshot immediately and again whenever anything changes, so **nothing
+is polled after that** — one persistent connection replaces what would
+otherwise be a request every couple of seconds.
 
 If the socket has never managed to open at all — an older master, a blocked
 port — every action still works exactly as before, and feedbacks and
@@ -87,11 +89,19 @@ the HTTP side, so it can be green while this feedback is false, or the other
 way round.
 
 The master accepts at most four `/ws` clients at once and evicts the _oldest_
-when a fifth connects. With a few of the master's own web-UI tabs already open,
-the Companion module's socket is often the oldest and can be the one evicted —
-which shows up as **Master is Connected** flapping even though nothing is
-actually wrong. It reconnects on its own; closing unused browser tabs on the
-master's web UI reduces how often this happens.
+when a fifth connects. Because the Companion module typically connects once and
+stays connected for an entire show, it is usually the _oldest_ client — so if
+someone opens the master's own web UI in a browser partway through and a fifth
+`/ws` client shows up, it is the module's socket that gets evicted, not the new
+tab's, which shows up as **Master is Connected** flapping even though nothing
+is actually wrong.
+
+It reconnects on its own, but if the master is still at the cap when it does,
+the firmware skips priming that reconnect: **Master is Connected** goes true
+immediately, while the other feedbacks and variables hold whatever they last
+knew — rather than refreshing right away — until the next real state change
+arrives. Closing unused browser tabs on the master's web UI reduces how often
+any of this happens.
 
 Requires master firmware **v1.3.0 or newer**. Against older firmware the actions
 work and the feedbacks stay inactive.
@@ -120,8 +130,8 @@ the names, `offair`).
 Presets ship pre-wired: every camera preset carries its **Camera is Live** or
 **Camera is Preview** feedback, and the **ON AIR** / **OFF AIR** presets carry
 the **On Air is On** feedback — **OFF AIR** inverted, so it lights while the
-On Air light is _off_ rather than on. Dragging one of those five presets onto a
-button shows state immediately, with no feedback to add by hand.
+On Air light is _off_ rather than on. Dragging any of those onto a button shows
+state immediately, with no feedback to add by hand.
 
 **AUTO**, **ALL OFF** and **ALL IDLE** carry no feedback: they are momentary
 commands with no state of their own to report.
@@ -141,10 +151,11 @@ the master when the connection was saved.
 refreshed automatically whenever the module reconnects to the master or the master
 reports a camera number these dropdowns don't recognise yet. Both of those
 triggers are WebSocket-driven and need firmware v1.3.0 or newer; against older
-firmware, reopening the connection settings and saving is the only way to pick
-up a rename. Short of one of those, a camera you rename in the master's web UI
-keeps its old name here until one occurs. This is cosmetic only — the camera
-_number_ the action sends is unchanged, so your buttons keep working either way.
+firmware, reopening the connection settings and saving — or restarting
+Companion, or reloading the module — is what picks up a rename instead. Short
+of one of those, a camera you rename in the master's web UI keeps its old name
+here until one occurs. This is cosmetic only — the camera _number_ the action
+sends is unchanged, so your buttons keep working either way.
 
 ## Two behaviours that come from the master, not this module
 
@@ -159,11 +170,12 @@ change when you press a button, check the Companion log and then the camera.
 
 ## Status indicator
 
-| Colour                      | Meaning                                                                       |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| Green                       | Master answered                                                               |
-| Red — "unreachable"         | Nothing answered at that address                                              |
-| Red — "unexpected response" | Something answered but it is not an RM Tally Lights master; check the address |
+| Colour                      | Meaning                                                                            |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| Green                       | Master answered                                                                    |
+| Red — "unreachable"         | Nothing answered at that address                                                   |
+| Red — "unexpected response" | Something answered but it is not an RM Tally Lights master; check the address      |
+| Red — no message            | An action timed out waiting for a reply — see "Don't lower the timeout much" above |
 
 This dot is set once when the connection is saved and again after every
 action's result — never on a timer — so a red dot clears as soon as the next

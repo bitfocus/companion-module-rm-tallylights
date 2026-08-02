@@ -12,20 +12,22 @@ See [HELP.md](./companion/HELP.md) for user documentation and [LICENSE](./LICENS
 
 Ten actions covering camera tally states (live / preview / idle / off, individually
 or all at once), the master's `Auto` swap, its combined live+preview endpoint, and
-the On Air relay. Plus ready-to-drag presets, including one pair per camera.
+the On Air relay. Four feedbacks (per-camera live, per-camera preview, On Air, and
+whether the module's state connection to the master is open) and five variables
+(live/preview camera number and name, On Air state) report the master's state back
+into Companion. Presets are ready to drag out, including one pair per camera, and
+most ship with their feedback already attached.
 
-**Nothing is polled.** The module makes two HTTP requests when a connection is
-configured and one per button press. The master runs a single-threaded web server
-that becomes unresponsive under sustained connection pressure, so background
-polling is deliberately absent — which is also why v1 has no feedbacks. See
-`docs/superpowers/specs/` for the design rationale.
-
-### Known limitation: camera names can go stale
-
-The camera list is read from the master when the connection is saved. A camera
-renamed in the master's web UI keeps its old name in action dropdowns until you
-re-save the connection. This is cosmetic — the camera _number_ the action sends is
-unchanged, so buttons keep working correctly.
+**Nothing is polled.** Saving the connection reads the camera list over HTTP, and
+each button press is one HTTP request. Against master firmware **v1.3.0 or
+newer**, the module also opens a single WebSocket that the master pushes a
+complete state snapshot over on connect and again on every change — that push
+channel is what drives the feedbacks and variables above. Against older firmware
+every action still works; the feedbacks and variables simply stay inactive. See
+`docs/superpowers/specs/` for the design rationale, and
+[HELP.md](./companion/HELP.md) for full user-facing behaviour, including camera
+name refresh timing and what happens during a master reboot or a dropped
+connection.
 
 ## Getting started
 

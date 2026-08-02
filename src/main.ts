@@ -60,7 +60,12 @@ export default class ModuleInstance extends InstanceBase<ModuleSchema> {
 	}
 
 	/**
-	 * Exactly two requests. Nothing polls — see the v1 design spec, section 4.
+	 * Up to three HTTP requests, then a WebSocket. A `/test` probe, a
+	 * camera-list read, and -- once the socket confirms firmware v1.3.0+ is
+	 * present -- a second camera-list read from its connect handler. Nothing
+	 * is polled: the socket pushes state on its own. See the v1 HTTP design
+	 * spec (section 4) for why actions still don't retry, and the firmware
+	 * v1.3.0 WebSocket design spec for the push protocol.
 	 */
 	private async connect(): Promise<void> {
 		// connect() runs from init() and from configUpdated(); without this, editing
