@@ -221,3 +221,73 @@ running. The owner drives those checks.
 The module is not yet published, so rollback is `git checkout v1.0.0` with no
 external consequence. Once submitted to the Bitfocus registry this stops being
 true — which is the reason §7 exists.
+
+## 11. Results
+
+Implemented across 19 commits on `feature/module-v2`, merged as `42fe220` and
+tagged `v2.0.0` on 2026-08-01. 162 tests (up from 91), lint clean, build clean,
+`yarn package` clean. Runtime dependencies: still exactly one.
+
+**Verified against the real master at 192.168.0.76, without Companion.** The
+compiled module was driven directly from Node: `fetchCameras` read both cameras
+over HTTP; the socket connected and was primed with a snapshot; six frames
+arrived across four state changes; `isLive` / `isPreview` / `isOnAir` tracked
+correctly at every step; `variableValues` resolved `Canon` and `Main Camera` and
+reverted to `0` / empty on reset; and `stop()` exited the process immediately,
+proving no reconnect timer leaked. The firmware's own `ws-check` passed 7/7
+against the same device.
+
+**Not yet verified — needs Companion and the owner.** Presets showing state
+unwired, a variable rendering on a button label, **Master is Connected**
+recovering from a master reboot without a Companion restart, and editing the
+connection host without leaving a duplicate socket. That last one exercises the
+races §11.1 describes.
+
+### 11.1 What review caught that the tests did not
+
+Five defects reached review and none reached hardware. They are recorded because
+the pattern is the point: every one lived in code that unit tests either did not
+cover or could not.
+
+**`StateSocket.start()` was not idempotent.** A second call stranded the first
+socket with its handlers attached; when it later closed it nulled the reference,
+after which `stop()` could not close the second and a third was scheduled. The
+review also found that the task's brief — mine — had left the entire connection
+lifecycle untested while covering all of the parsing. That gap is why the bug
+survived. Twenty-eight socket tests now exist, and the implementer verified each
+new regression test fails with its fix reverted.
+
+**The camera-list refresh was an unbounded request loop.** A snapshot naming an
+id `/api/cameras` will never return — a deleted camera lingering in the pushed
+array, or an id `parseCameraList` skips — retriggered a fetch on every frame,
+with no in-flight guard and a 10-second timeout. Fixing it introduced a second
+defect: a single timed-out fetch then blacklisted a genuinely new camera until
+reconnect, which is exactly what adding a camera mid-show looks like.
+
+**Two `connect()` races.** `startSocket()` runs after two awaits of up to
+`config.timeout` each. Overlapping config saves could leave a socket that
+`stopSocket()` and `destroy()` could never reach, burning one of the master's
+four WebSocket slots per edit; and a `destroy()` mid-connect could create a
+socket outliving the instance. A generation counter and a `destroyed` flag close
+both. A third round was needed because the first guard was placed after the
+state mutations it was meant to protect.
+
+**`refreshCameras()` could commit a stale master's camera list.** Found by the
+whole-branch review: it had a `destroyed` guard but no generation guard, and
+because the reconnect-triggered refresh was the one swallowed by
+`refreshInFlight`, nothing re-read the list until the socket next dropped —
+potentially never during a show.
+
+**The documentation contradicted itself three rounds running.** Each round's new
+prose disagreed with a sentence it had left in place, and each was caught only by
+reading both files whole rather than the diff. The last one claimed that on an
+unprimed reconnect nothing refreshes, when camera _names_ do — because that read
+goes over HTTP and does not care whether the socket was primed.
+
+### 11.2 Known and deliberately not addressed
+
+- **An unprimed reconnect can leave the tally confidently stale.** The firmware evicts the _oldest_ `/ws` client and skips priming an arriving client over its four-client cap. The module is typically the oldest, so it can be evicted and return unprimed: **Master is Connected** goes true while the tally holds old values, and the master only broadcasts on change. Requires four other clients — browser tabs on the master's own UI. Documented in `HELP.md`. The fix is to prime from `/api/camera-status` on reconnect, which needs a second parser and a second source for `onair`: a feature, and the first item of the v2.1 backlog.
+- **The refresh loop is narrowed, not closed.** An HTTP 200 whose body parses to `[]` is indistinguishable from a failed request, so it is never recorded as unresolvable. The real bound is one serialized request per state change, not the per-frame storm an earlier analysis claimed — that figure misread the firmware's 100 ms coalescing floor as a broadcast rate. The clean fix is `fetchCameras` returning `null` on failure, which changes a shared contract.
+- **The OFF AIR preset lights when there is no connection at all.** Its feedback is inverted, so with no information it reports "not on air". Every other feedback fails dark; this one fails lit. Documented rather than changed — the inversion is correct behaviour for the connected case.
+- **`main.ts` has no direct test coverage.** The plan ruled against building a fake `InstanceBase`, consistent with a repo that tests pure functions and mocks nothing. The consequence is that the code which absorbed the most review effort has no regression tests, and the final fix shipped untested.
+- **Definitions are rebuilt on every reconnect** even when the camera list is unchanged, pushing three full definition sets over IPC. Load lands on Companion, not the device.
