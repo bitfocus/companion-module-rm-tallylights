@@ -5,10 +5,10 @@
 	"name": "rm-tallylights",
 	"shortname": "RM Tally Lights",
 	"description": "Control RM Tally Lights camera tally and On Air lights",
-	"version": "2.0.0",
+	"version": "2.0.1",
 	"license": "MIT",
-	"repository": "https://github.com/rocampocr/companion-module-rm-tallylights",
-	"bugs": "https://github.com/rocampocr/companion-module-rm-tallylights/issues",
+	"repository": "https://github.com/bitfocus/companion-module-rm-tallylights",
+	"bugs": "https://github.com/bitfocus/companion-module-rm-tallylights/issues",
 	"maintainers": [
 		{
 			"name": "Rosnell Media Group",
